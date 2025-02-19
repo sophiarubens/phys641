@@ -58,7 +58,7 @@ cal.compute_stats()
 freqmask=cal.chan_stats.mean==0
 calmasked=np.where(freqmask,cal.chan_stats.mean,np.nan)
 
-plt.figure()
+plt.figure(figsize=(10,5))
 calfreqs=calheader.chan_freqs
 plt.plot(calfreqs, cal.chan_stats.mean) # not calmasked yet
 plt.xlabel('frequency (MHz)')
@@ -67,18 +67,14 @@ plt.title('average spectrum of calibrator source 3C 129')
 plt.savefig('calspecraw.png')
 plt.show()
 
-
 # 3. convert ADC counts to Jy using a transfer function
-# print('calfreqs=',calfreqs)
 theospec_datares=S0*(calfreqs*1e6)**alpha # theoretical spectrum sampled at the same frequencies as the CHIME calibrator spectrum (i.e. "data resolution")
-# print('min and max of theospec_datares:',np.min(theospec_datares),np.max(theospec_datares))
-# print('min and max of calspec:',np.min(calspec),np.max(calspec))
 calspeczeros=np.nonzero(calspec==0)
 calspec[calspeczeros]=np.inf # set the entries in calspec w/ zeros to have infinity there to prevent division errors
 transfer=theospec_datares/calspec
 transfer[calspeczeros]=np.nan # we don't want the transfer function to have zeros in the problematic places; nans are more intuitive
 
-plt.figure()
+plt.figure(figsize=(10,5))
 plt.plot(calfreqs,transfer)
 plt.xlabel('frequency (MHz)')
 plt.ylabel('transfer amplitude (Jy/ADU)')
@@ -92,14 +88,13 @@ calt0obj=Time(calt0,format='mjd') # astropy.time.Time object version of the MJD 
 calt0iso=calt0obj.iso # ISO format is more intuitively human-readable: YYYY-MM-DD HH:MM:SS.sss
 caltimes0=np.arange(0,calns)*caldt # vector of times in the calibration vector
 transferred_caldata=multiply_columnwise(caldata.data,transfer)
-floor=1
-ceil=99 # too high: 99.999; 99.9 marginally better
+ceil=99
 plt.imshow(transferred_caldata,extent=[caltimes0[0],caltimes0[-1],calfreqs[-1],calfreqs[0]],aspect=1e-2,vmin=np.nanpercentile(transferred_caldata,0),vmax=np.nanpercentile(transferred_caldata,ceil)) # HERE AND IN OTHER WATERFALL PLOT IMSHOWS: extent=[left,right,bottom,top]; vmin and vmax set using the 0th and 100th percentiles of the data being imshown //,vmin=np.nanpercentile(transferred_caldata,0),vmax=np.nanpercentile(transferred_caldata,100)
 plt.xlabel('time (s) after '+calt0iso)
 plt.ylabel('frequency (MHz)')
 plt.title('Calibrator source 3C 129 waterfall plot')
 cbar=plt.colorbar()
-cbar.set_label('flux density (Jy)')
+cbar.set_label('Mean flux density (Jy)')
 plt.tight_layout()
 plt.savefig('cal3waterfall.png')
 plt.show()
@@ -108,10 +103,10 @@ plt.show()
 # below: similar to when I imported the calibrator data, but this time with "bsk," for "blank sky"
 bsk,    bskheader, bsktimes, bskt0, bskdt, bskns, bsknchan, bskfch1, bskdf, bsknsamp, bskchannels, bskfreqs, bskblock,  bskdata,  bskspec=importfil('blank_sky.fil')
 
-plt.figure()
+plt.figure(figsize=(10,5))
 plt.plot(bskfreqs,bskspec*transfer) # apply the calibration transfer function when plotting the average spectrum
 plt.xlabel('frequency (MHz)')
-plt.ylabel('flux density (Jy), averaged over all '+str(bsknsamp)+' phase measurements')
+plt.ylabel('Mean flux density (Jy), averaged over all '+str(bsknsamp)+' phase measurements')
 plt.title('average spectrum of the blank sky')
 plt.savefig('bskspec.png')
 plt.show()
@@ -126,16 +121,20 @@ plt.xlabel('time (s) after '+bskt0iso)
 plt.ylabel('frequency (MHz)')
 plt.title('transfer function–aware waterfall plot of the blank sky')
 cbar=plt.colorbar()
-cbar.set_label('flux density (Jy)')
+cbar.set_label('Mean flux density (Jy)')
 plt.tight_layout()
 plt.savefig('bskwaterfall.png')
 plt.show()
 
 # 5. conduct statistical analysis on a per-channel basis
 normedbskdata=0*bskdata # create a holder of the same size as the phase-and-frequency–indexed data set
+channelmeans=0*bskfreqs
+channelstds=0*bskfreqs
 for i,channel in enumerate(bskdata): # look at the stats one channel at a time
     mean=np.mean(channel)
+    channelmeans[i]=mean
     std=np.std(channel)
+    channelstds[i]=std
     if std==0: # hard-code protection against division-by-zero errors
         normedbskdata[i,:]=np.nan
     else:
@@ -143,13 +142,27 @@ for i,channel in enumerate(bskdata): # look at the stats one channel at a time
 
 plt.figure(figsize=(10,5))
 bskscalednormed=multiply_columnwise(normedbskdata,transfer)
-mod=0.5
-plt.imshow(bskscalednormed,extent=[bsktimes0[0],bsktimes0[-1],bskfreqs[-1],bskfreqs[0]],aspect=1e-2,vmin=np.nanpercentile(bskscalednormed,0.1),vmax=np.nanpercentile(bskscalednormed,99.9)) # extent=[left,right,bottom,top]
+mod=15
+plt.imshow(bskscalednormed,extent=[bsktimes0[0],bsktimes0[-1],bskfreqs[-1],bskfreqs[0]],aspect=1e-2,vmin=np.nanpercentile(bskscalednormed,mod),vmax=np.nanpercentile(bskscalednormed,100-mod)) # extent=[left,right,bottom,top]
 plt.xlabel('time (s) after '+bskt0iso)
 plt.ylabel('frequency (MHz)')
 plt.title('Normalized and transfer function–aware waterfall plot of the blank sky')
 cbar=plt.colorbar()
-cbar.set_label('flux density (Jy)')
+cbar.set_label('Mean flux density (Jy)')
 plt.tight_layout()
 plt.savefig('bsknormedwaterfall.png')
+plt.show()
+
+fig,axs=plt.subplots(3,1,layout='tight',sharex=True,figsize=(12,8))
+markersz=1
+axs[0].scatter(bskfreqs,channelmeans,s=markersz)
+axs[0].set_ylabel('Mean flux density (Jy)')
+axs[1].scatter(bskfreqs,channelstds,s=markersz)
+axs[1].set_ylabel('Standard deviation')
+bskscalednormedspec=np.sum(bskscalednormed,axis=1)
+axs[2].scatter(bskfreqs,bskscalednormedspec,s=markersz)
+axs[2].set_ylabel('Mean normalized intensity')
+axs[2].set_xlabel('frequency (MHz)')
+plt.suptitle('Frequency dependence of blank sky statistics')
+fig.savefig('noisestats.png')
 plt.show()
