@@ -4,7 +4,7 @@ import sigpyproc
 from sigpyproc.readers import FilReader
 from astropy.time import Time
 
-part1plots=False
+part1plots=True
 
 def multiply_columnwise(A,b):
     '''for each column in matrix A, multiply elementwise by vector b'''
@@ -54,18 +54,20 @@ def importfil(fname,verbose=False):
 
 # below: all the return values described above, but prefaced with "cal," for "calibrator"
 cal,    calheader, caltimes, calt0, caldt, calns, calnchan, calfch1, caldf, calnsamp, calchannels, calfreqs, calblock,  caldata,  calspec=importfil('calibrator_source.fil',verbose=False)
+_, calmask=cal.clean_rfi(method='mad',threshold=2)
+cal,    calheader, caltimes, calt0, caldt, calns, calnchan, calfch1, caldf, calnsamp, calchannels, calfreqs, calblock,  caldata,  calspec=importfil('calibrator_source_masked.fil',verbose=False)
 
 # amplitude will be too high where the cal spec has values near zero ... overwrite using a mask
 caldata=cal.read_block(0,calheader.nsamples,calheader.fch1,calheader.nchans)
 caldataarray = caldata.data
 cal.compute_stats()
 freqmask=cal.chan_stats.mean==0
-calmasked=np.where(freqmask,cal.chan_stats.mean,np.nan)
+calmasked=np.where(~freqmask,cal.chan_stats.mean,np.nan)
 
 if part1plots:
     plt.figure(figsize=(10,5))
     calfreqs=calheader.chan_freqs
-    plt.plot(calfreqs, cal.chan_stats.mean) # not calmasked yet
+    plt.plot(calfreqs, calmasked) # calmasked
     plt.xlabel('frequency (MHz)')
     plt.ylabel('mean ADU over all '+str(calns)+' phase measurements')
     plt.title('average spectrum of calibrator source 3C 129')
@@ -76,7 +78,7 @@ if part1plots:
 theospec_datares=S0*(calfreqs*1e6)**alpha # theoretical spectrum sampled at the same frequencies as the CHIME calibrator spectrum (i.e. "data resolution")
 calspeczeros=np.nonzero(calspec==0)
 calspec[calspeczeros]=np.inf # set the entries in calspec w/ zeros to have infinity there to prevent division errors
-transfer=theospec_datares/calspec
+transfer=theospec_datares/calmasked
 transfer[calspeczeros]=np.nan # we don't want the transfer function to have zeros in the problematic places; nans are more intuitive
 
 if part1plots:
@@ -109,10 +111,22 @@ if part1plots:
 # 4. apply the transfer function to the blank sky 
 # below: similar to when I imported the calibrator data, but this time with "bsk," for "blank sky"
 bsk,    bskheader, bsktimes, bskt0, bskdt, bskns, bsknchan, bskfch1, bskdf, bsknsamp, bskchannels, bskfreqs, bskblock,  bskdata,  bskspec=importfil('blank_sky.fil')
+_, bskmask=bsk.clean_rfi(method='mad',threshold=2)
+bsk,    bskheader, bsktimes, bskt0, bskdt, bskns, bsknchan, bskfch1, bskdf, bsknsamp, bskchannels, bskfreqs, bskblock,  bskdata,  bskspec=importfil('blank_sky_masked.fil')
 
+# ##
+# bskdata=bsk.read_block(0,bskheader.nsamples,bskheader.fch1,bskheader.nchans)
+# bskdataarray = bskdata.data
+# bsk.compute_stats()
+# bskfreqmask=bsk.chan_stats.mean==0
+# bskmasked=np.where(~bskfreqmask,bsk.chan_stats.mean,np.nan)
+# ##
+
+bskmasked=bskspec*transfer
+bskmasked[np.nonzero(bskmasked==0)]=np.nan
 if part1plots:
     plt.figure(figsize=(10,5))
-    plt.plot(bskfreqs,bskspec*transfer) # apply the calibration transfer function when plotting the average spectrum
+    plt.plot(bskfreqs,bskmasked) # apply the calibration transfer function when plotting the average spectrum
     plt.xlabel('frequency (MHz)')
     plt.ylabel('Mean flux density (Jy), averaged over all '+str(bsknsamp)+' phase measurements')
     plt.title('average spectrum of the blank sky')
