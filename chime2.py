@@ -197,42 +197,31 @@ S0=S400*(400e6)**(-alpha) # S=S0*nu**alpha; S400=S0*(400e6)**(-1.5) -> S0=S400*(
 Spulsar=S0*(calfreqs*1e6)**alpha # the units work out if I use the Hz version (not MHz)
 calmaskchanmask=calmask.chan_mask
 bskmaskchanmask=bskmask.chan_mask
-# print('calmask=',calmask)
-# print('calmaskchanmask=',calmaskchanmask)
-# print('calmaskchanmask.shape',calmaskchanmask.shape)
-# assert(1==0), "trying to figure out how to appropriately mask Spulsar"
 Spulsar[calmaskchanmask]=np.nan # CHECK!! this might be flipped or the wrong thing
 Spulsar[bskmaskchanmask]=np.nan
 # there is calmask but also bskmask
-# Ssys is bskmasked
-
-# Naman's suggestion: find the constant of proportionality for the given SNR expression using the source spectrum
-# still not sure if I'd use the calibrator or blank sky,
-# I think I'd just multiply it so it's SNR [given LHS] = (fiducial SNR)*(given RHS)
-# cal signal is... ??
-# if I pick the cal signal to be the theo spectrum, then the noise is 0 (unrealistic)
-# if I pick the cal signal to be the data average, that's in ADC counts
-# if I convert the ADC counts to Jy, that returns the theo spec (back to square one with zero noise??)
-# How do I even estimate the noise in a single frequency channel??
-# calnoise =
-# calsnr   =
-# SNR = calsnr*
 
 # can estimate the pulsar SNR by taking (expected pulsar power law spectrum)*sqrt(N)/(blank sky spectrum noise from part 1)
 
-# What if I just forget the constant of proportionality for now and look at a plot of the RHS as it appears in the question text??
-def RHS(Spulsar,N,Ssys):
+def SNR(Spulsar,N,Ssys):
     return Spulsar*np.sqrt(N)/Ssys
+
+SNR1pulse=SNR(Spulsar,1,bskmasked)
 plt.figure()
-plt.plot(calfreqs,RHS(Spulsar,1,bskmasked))
+plt.plot(calfreqs,SNR1pulse)
 plt.xlabel('frequency (MHz)')
 plt.ylabel('dimensionless, unitless SNR proportionality')
-plt.title('RHS of SNR proportionality for N=1')
+plt.title('RHS of SNR proportionality for N=1 and the POWER LAW pulsar spectrum')
+plt.savefig('one_pulse_theo_snr.png')
 plt.show()
+
+meanSNR1pulse=np.nanmean(SNR1pulse)
+N_required=(2./meanSNR1pulse)**2 # factor_by_which_you_need_to_increase_snr=2./meanSNR1 = sqrt(N_required) -> N_required = (2./meanSNR1)**2
+print('you must observe',N_required,'pulses, or, in other words, fold the datà',N_required,'times')
 
 # 2. load and normalize pulsar data
 pfil=FilReader('pulsardata.fil')
-_, calmask=pfil.clean_rfi(method='mad',threshold=2)
+_, pmask=pfil.clean_rfi(method='mad',threshold=3)
 pfil=FilReader('pulsardata_masked.fil') # use the RFI-flagged version of the data
 phead=pfil.header
 pt0=phead.tstart # reference/ start time of observations
@@ -245,15 +234,31 @@ pfch1=phead.fch1 # frequency of initial channel
 pdf=phead.foff # frequency offset of channels
 pnsamp=phead.nsamples # number of samples per channel = number of time steps of observation
 pchannels=np.arange(0,pnchan) # index channel numbers
-pfreqs=pfch1+pchannels*pdf # frequency vector is a linear function of the channel number
+pfreqs=pfch1+pchannels*pdf # frequency vector is a linear function of the channel number, in MHz
 pfileblock=pfil.read_block(0,pns) # data is accessible by reading a block
 pfiledata=pfileblock.data
-pfilespec=np.mean(pfiledata,axis=1) # average over phase to get the data as a function of frequency
+pulsarspec_adu=np.mean(pfiledata,axis=1) # average over phase to get the spectral data as a function of frequency
+pspecaduzero=np.nonzero(pulsarspec_adu==0)
+pulsarspec_adu[pspecaduzero]=np.nan
 
-## calculate the RHS of the SNR equation?? (**UPDATE TO REFLECT ANY NEW UNDERSTANDING OF THE RHS NORMALIZATION IN Q1)
-print('pfreqs=',pfreqs) # in MHz
-Spulsar_atpfreqs=S0*(pfreqs*1e6)**alpha # same power law as before, but this time, sample it at the same frequencies as were recorded in the pulsar observation .fil
+transfer[np.nonzero(transfer==0)]=np.nan # try this to see if it helps remove the weird drops down to zero in the #2 SNR plot that show up even though I did RFI flagging
+pulsarspec_jy=pulsarspec_adu*transfer # pulsar spectrum in physical units (Janskys)
 
+checkfreqs=False
+if checkfreqs:
+    print("pfreqs==calfreqs?",(pfreqs==calfreqs).all())
+    print('calfreqs==bskfreqs?',(calfreqs==bskfreqs).all()) # since this prints out True, there's no need to worry about different spectra originally prepared at the calibrator / blank sky frequencies having different frequency values for the same array indices ... the sort of less hacky way to do this would have been to check that the f0, df, and nchan were all the same
+SNRdataversion=SNR(pulsarspec_jy,1,bskmasked) # SNR(Spulsar,N,Ssys) # once again, the pulsar SNR, but this time using the data spectrum, not the theoretical spectrum
+
+plt.figure()
+plt.plot(calfreqs,SNRdataversion)
+plt.xlabel('frequency (MHz)')
+plt.ylabel('dimensionless, unitless SNR proportionality')
+plt.title('RHS of SNR proportionality for N=1 and the DATA pulsar spectrum')
+plt.savefig('one_pulse_data_snr.png')
+plt.show()
+
+# now, normalize the data within each channel
 
 # 3. DM transform
 # 4. search for periodic signal in Fourier space
