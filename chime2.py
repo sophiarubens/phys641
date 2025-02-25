@@ -194,7 +194,7 @@ if part1plots:
 S400=0.15
 alpha=-1.5
 S0=S400*(400e6)**(-alpha) # S=S0*nu**alpha; S400=S0*(400e6)**(-1.5) -> S0=S400*(400e6)**1.5
-print('S0',S0)
+# print('S0',S0)
 Spulsar=S0*(calfreqs*1e6)**alpha # the units work out if I use the Hz version (not MHz)
 plt.figure()
 plt.plot(calfreqs,Spulsar)
@@ -206,7 +206,6 @@ calmaskchanmask=calmask.chan_mask
 bskmaskchanmask=bskmask.chan_mask
 Spulsar[calmaskchanmask]=np.nan # CHECK!! this might be flipped or the wrong thing
 Spulsar[bskmaskchanmask]=np.nan
-# can estimate the pulsar SNR by taking (expected pulsar power law spectrum)*sqrt(N)/(blank sky spectrum noise from part 1)
 
 def SNR(Spulsar,N,Ssys):
     return Spulsar*np.sqrt(N)/Ssys
@@ -214,6 +213,10 @@ def SNR(Spulsar,N,Ssys):
 SNR1pulse=SNR(Spulsar,1,bskmasked)
 plt.figure()
 plt.plot(calfreqs,SNR1pulse)
+snr1mean=np.nanmean(SNR1pulse)
+snr1max=np.nanmax(SNR1pulse)
+snr1min=np.nanmin(SNR1pulse)
+
 plt.xlabel('frequency (MHz)')
 plt.ylabel('dimensionless, unitless SNR proportionality')
 plt.title('RHS of SNR proportionality for N=1 and the POWER LAW pulsar spectrum')
@@ -221,13 +224,13 @@ plt.savefig('one_pulse_theo_snr.png')
 plt.show()
 
 meanSNR1pulse=np.nanmean(SNR1pulse)
-N_from_mean=(2./np.nanmean(SNR1pulse))**2 # factor_by_which_you_need_to_increase_snr=2./meanSNR1 = sqrt(N_required) -> N_required = (2./meanSNR1)**2
-N_from_max=(2./np.nanmax(SNR1pulse))**2
-N_from_min=(2./np.nanmin(SNR1pulse))**2
+N_from_mean=(2./snr1mean)**2 # factor_by_which_you_need_to_increase_snr=2./meanSNR1 = sqrt(N_required) -> N_required = (2./meanSNR1)**2
+N_from_max=(2./snr1max)**2
+N_from_min=(2./snr1min)**2
 print('To achieve SNR~2, you observe x pulses / fold the data x times')
-print('Based on the mean SNR, x=',round(N_from_mean))
-print('Based on the max  SNR, x=',round(N_from_max))
-print('Based on the min  SNR, x=',round(N_from_min))
+print('Based on the mean one-pulse SNR,',np.round(snr1mean,4),', x=',round(N_from_mean))
+print('Based on the max  one-pulse SNR,',np.round(snr1max,4),', x=',round(N_from_max))
+print('Based on the min  one-pulse SNR,',np.round(snr1min,4),', x=',round(N_from_min))
 
 # 2. load and normalize pulsar data
 pfil=FilReader('pulsardata.fil')
@@ -255,12 +258,10 @@ transfer[np.nonzero(transfer==0)]=np.nan # try this to see if it helps remove th
 pulsarspec_jy=pulsarspec_adu*transfer # pulsar spectrum in physical units (Janskys)
 
 plt.figure()
-plt.plot(calfreqs,pulsarspec_jy,label='pulsar spec Jy')
-plt.plot(calfreqs,bskmasked,label='blank sky noise')
-plt.legend()
+plt.plot(calfreqs,pulsarspec_jy)
 plt.xlabel('freq (MHz)')
 plt.ylabel('spectral flux density (Jy)')
-plt.title('comparison')
+plt.title('pulsar check')
 plt.show()
 
 checkfreqs=False
@@ -268,14 +269,6 @@ if checkfreqs:
     print("pfreqs==calfreqs?",(pfreqs==calfreqs).all())
     print('calfreqs==bskfreqs?',(calfreqs==bskfreqs).all()) # since this prints out True, there's no need to worry about different spectra originally prepared at the calibrator / blank sky frequencies having different frequency values for the same array indices ... the sort of less hacky way to do this would have been to check that the f0, df, and nchan were all the same
 SNRdataversion=SNR(pulsarspec_jy,1,bskmasked) # SNR(Spulsar,N,Ssys) # once again, the pulsar SNR, but this time using the data spectrum, not the theoretical spectrum
-
-plt.figure()
-plt.plot(calfreqs,SNRdataversion)
-plt.xlabel('frequency (MHz)')
-plt.ylabel('dimensionless, unitless SNR proportionality')
-plt.title('RHS of SNR proportionality for N=1 and the DATA pulsar spectrum')
-plt.savefig('one_pulse_data_snr.png')
-plt.show()
 
 # normalize data within each channel
 normedpdata=0*pfiledata # holder of the same shape as the full 2D pulsar data set
@@ -291,17 +284,16 @@ for i, channel in enumerate(pfiledata): # iterate over channels
     else:
         normedpdata[i,:]=(channel-mean)/std
 
-transferrednormedpdata=multiply_columnwise(normedpdata,transfer)
-plt.figure()
-plt.imshow(transferrednormedpdata,extent=[ptimes[0],ptimes[-1],pfreqs[-1],pfreqs[0]],aspect=1e-2) #,vmin=np.nanpercentile(transferred_caldata,0),vmax=np.nanpercentile(transferred_caldata,ceil)) # HERE AND IN OTHER WATERFALL PLOT IMSHOWS: extent=[left,right,bottom,top]; vmin and vmax set using the 0th and 100th percentiles of the data being imshown //,vmin=np.nanpercentile(transferred_caldata,0),vmax=np.nanpercentile(transferred_caldata,100)
-plt.xlabel('time (s) after '+calt0iso)
-plt.ylabel('frequency (MHz)')
-plt.title('Normalized, transferred pulsar waterfall plot')
-cbar=plt.colorbar()
-cbar.set_label('Mean flux density (Jy)')
-plt.tight_layout()
-# plt.savefig('cal3waterfall.png',dpi=hires)
-plt.show()
+# transferrednormedpdata=multiply_columnwise(normedpdata,transfer)
+# plt.figure(figsize=(10,5))
+# plt.imshow(transferrednormedpdata,extent=[ptimes[0],ptimes[-1],pfreqs[-1],pfreqs[0]],aspect=1e-2,vmin=np.nanpercentile(transferrednormedpdata,1),vmax=np.nanpercentile(transferrednormedpdata,99)) # HERE AND IN OTHER WATERFALL PLOT IMSHOWS: extent=[left,right,bottom,top]; vmin and vmax set using the 0th and 100th percentiles of the data being imshown //,vmin=np.nanpercentile(transferred_caldata,0),vmax=np.nanpercentile(transferred_caldata,100)
+# plt.xlabel('time (s) after '+calt0iso)
+# plt.ylabel('frequency (MHz)')
+# plt.title('Normalized, transferred pulsar waterfall plot')
+# cbar=plt.colorbar()
+# cbar.set_label('Mean flux density (Jy)')
+# plt.tight_layout()
+# plt.show()
 
 # 3. DM transform
 
