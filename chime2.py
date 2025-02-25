@@ -270,33 +270,38 @@ if checkfreqs:
     print('calfreqs==bskfreqs?',(calfreqs==bskfreqs).all()) # since this prints out True, there's no need to worry about different spectra originally prepared at the calibrator / blank sky frequencies having different frequency values for the same array indices ... the sort of less hacky way to do this would have been to check that the f0, df, and nchan were all the same
 SNRdataversion=SNR(pulsarspec_jy,1,bskmasked) # SNR(Spulsar,N,Ssys) # once again, the pulsar SNR, but this time using the data spectrum, not the theoretical spectrum
 
-# normalize data within each channel
-normedpdata=0*pfiledata # holder of the same shape as the full 2D pulsar data set
-pchanmeans=0*pfreqs # to hold the pulsar channel means
-pchanstds=0*pfreqs # to hold the pulsar channel stds
-for i, channel in enumerate(pfiledata): # iterate over channels
-    mean=np.mean(channel)
-    channelmeans[i]=mean
-    std=np.std(channel)
-    channelstds[i]=std
-    if std==0: # hard-code protection against division-by-zero errors
-        normedpdata[i,:]=np.nan
-    else:
-        normedpdata[i,:]=(channel-mean)/std
-
-# transferrednormedpdata=multiply_columnwise(normedpdata,transfer)
-# plt.figure(figsize=(10,5))
-# plt.imshow(transferrednormedpdata,extent=[ptimes[0],ptimes[-1],pfreqs[-1],pfreqs[0]],aspect=1e-2,vmin=np.nanpercentile(transferrednormedpdata,1),vmax=np.nanpercentile(transferrednormedpdata,99)) # HERE AND IN OTHER WATERFALL PLOT IMSHOWS: extent=[left,right,bottom,top]; vmin and vmax set using the 0th and 100th percentiles of the data being imshown //,vmin=np.nanpercentile(transferred_caldata,0),vmax=np.nanpercentile(transferred_caldata,100)
-# plt.xlabel('time (s) after '+calt0iso)
-# plt.ylabel('frequency (MHz)')
-# plt.title('Normalized, transferred pulsar waterfall plot')
-# cbar=plt.colorbar()
-# cbar.set_label('Mean flux density (Jy)')
-# plt.tight_layout()
-# plt.show()
+pfileblock.normalise()  # normalize data within each channel
+print('done normalizing')
+pfiledata=pfileblock.data
+pulsarspec_adu=np.mean(pfiledata,axis=1) # average over phase to get the spectral data as a function of frequency
+pspecaduzero=np.nonzero(pulsarspec_adu==0)
+pulsarspec_adu[pspecaduzero]=np.nan
 
 # 3. DM transform
-
+fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
+kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
+deltaDM=pdt/(kDM*fterm) # pc cm**{-3}
+print('deltaDM=',deltaDM)
+DMrange=40 # 10 to 50
+ndmsteps=int(DMrange/deltaDM)
+print('number of DM steps to take at the minimum sensible spacing =',ndmsteps)
+# assert(1==0)
+pfileblock.dmt_transform(30,dmsteps=ndmsteps) # initial guess = median of the range 10 to 50 that is apparently characteristic of pulsars; dmt_transform(dm,dmsteps) **dmsteps defaults to 512
 
 # 4. search for periodic signal in Fourier space
+
+# off_data_32 = off_Fil_32.read_block(of the downsampled data (downsampling factor = 32 here))
+# off_data_32_d2 = off_data_32.dedisperse(2)
+# off_data_ts = off_data_32_d2.get_tim() # plot off_data_ts.data
+# off_data_spec = off_data_ts.rfft()
+# off_data_pspec = off_data_spec.form_spec() # plot off_data_pspec.data
+
 # 5. fold data to find pulse
+
+# off_data_32_folded = off_Fil_32.fold(0.5,2,nints=1,nbands=1024,nbins=int(0.5//off_Fil_32.header.tsamp))
+# plt.figure()
+# plt.imshow(off_data_32_folded.data[0,:,:],aspect='auto',interpolation='nearest')
+# plt.colorbar()
+# plt.xlabel('Time [samples]')
+# plt.ylabel('Freq. [channel]')
+# plt.show()
