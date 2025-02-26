@@ -1,9 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
-# import sigpyproc
 from sigpyproc.readers import FilReader
 from astropy.time import Time
-from matplotlib.colors import LogNorm
 
 part1plots=False
 
@@ -234,7 +232,7 @@ print('Based on the min  one-pulse SNR,',np.round(snr1min,4),', x=',round(N_from
 
 # 2. load and normalize pulsar data
 pfil=FilReader('pulsardata.fil')
-_, pmask=pfil.clean_rfi(method='mad',threshold=3)
+_, pmask=pfil.clean_rfi(method='mad',threshold=3.,mask_value=0) ## PREVIOUSLY, I WAS NOT SPECIFYING mask_value
 pfil=FilReader('pulsardata_masked.fil') # use the RFI-flagged version of the data
 phead=pfil.header
 pt0=phead.tstart # reference/ start time of observations
@@ -261,7 +259,7 @@ plt.figure()
 plt.plot(calfreqs,pulsarspec_jy)
 plt.xlabel('freq (MHz)')
 plt.ylabel('spectral flux density (Jy)')
-plt.title('pulsar check')
+plt.title('pulsar flux check')
 plt.show()
 
 checkfreqs=False
@@ -280,21 +278,40 @@ pulsarspec_adu[pspecaduzero]=np.nan
 # 3. DM transform
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
-deltaDM=pdt/(kDM*fterm) # pc cm**{-3}
+ctrdm=30 # dmt_transform searches a range of dms symmetric about the specified center, according to the source code, so I'll provide the center of this region and use this center to figure out the number of steps required to get my desired spacing (set by the limit of the instrument) dm_arr = dm + np.linspace(-dm, dm, dmsteps)
+deltaDM=pdt/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
 print('deltaDM=',deltaDM)
-DMrange=40 # 10 to 50
-ndmsteps=int(DMrange/deltaDM)
-print('number of DM steps to take at the minimum sensible spacing =',ndmsteps)
-# assert(1==0)
-pfileblock.dmt_transform(30,dmsteps=ndmsteps) # initial guess = median of the range 10 to 50 that is apparently characteristic of pulsars; dmt_transform(dm,dmsteps) **dmsteps defaults to 512
+DMrange=2*ctrdm # want to search 10 to 50, but dmt_transform searches 0 to 2*dm, and I'd rather have symmetric regions outside the most likely one (because I don't know if an abnormally low or high dm is more likely), so I call with 30 as the center and not 25 or anything else
+ndmsteps=8
+dm_t=pfileblock.dmt_transform(ctrdm,dmsteps=ndmsteps) # massively scaled down version that runs quickly (useful for figuring out the rest of the steps)
+# ndmsteps=int(DMrange/deltaDM)
+# print('number of DM steps to take at the minimum sensible spacing =',ndmsteps)
+# dm_t=pfileblock.dmt_transform(ctrdm,dmsteps=ndmsteps) # full call that takes 40ish minutes to run
+# ^^ initial guess for dm = median of the range 10 to 50 that is apparently characteristic of pulsars
+
+pt0obj=Time(pt0,format='mjd')
+pt0iso=pt0obj.iso
+ptimes0=np.arange(pns)*pdt # like caltimes0=np.arange(0,calns)*caldt
+plt.figure(figsize=(10,5))
+plt.imshow(dm_t.data,extent=[ptimes0[0],ptimes0[-1],2*ctrdm,0],aspect=0.1) # L,R,B,T
+cbar=plt.colorbar()
+cbar.set_label('S/N')
+plt.xlabel('frequency (Hz), calculated from time (s) after '+pt0iso)
+plt.ylabel('DM ')
+plt.title('DM-time grid')
+plt.show()
 
 # 4. search for periodic signal in Fourier space
-
-# off_data_32 = off_Fil_32.read_block(of the downsampled data (downsampling factor = 32 here))
-# off_data_32_d2 = off_data_32.dedisperse(2)
-# off_data_ts = off_data_32_d2.get_tim() # plot off_data_ts.data
-# off_data_spec = off_data_ts.rfft()
-# off_data_pspec = off_data_spec.form_spec() # plot off_data_pspec.data
+dm_f=np.fft.rfft(dm_t.data)
+pfreqs=np.fft.fftfreq(pns,d=pdt) # as many frequencies as number of time samples, from a time array with spacing pdt
+plt.figure(figsize=(10,5))
+plt.imshow(dm_f,extent=[pfreqs[0],pfreqs[-1],2*ctrdm,0],aspect=0.1)
+cbar=plt.colorbar()
+cbar.set_label('S/N')
+plt.xlabel('frequency (Hz), calculated from time (s) after '+pt0iso)
+plt.ylabel('DM')
+plt.title('DM-frequency grid')
+plt.show()
 
 # 5. fold data to find pulse
 
