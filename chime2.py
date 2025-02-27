@@ -256,8 +256,9 @@ if checkfreqs:
     print("pfreqs==calfreqs?",(pfreqs==calfreqs).all())
     print('calfreqs==bskfreqs?',(calfreqs==bskfreqs).all()) # since this prints out True, there's no need to worry about different spectra originally prepared at the calibrator / blank sky frequencies having different frequency values for the same array indices ... the sort of less hacky way to do this would have been to check that the f0, df, and nchan were all the same
 
-p_masked.downsample(tfactor=16)
-p_masked_downsampled=FilReader('pulsardata_masked_f1_t16.fil') # off_Fil_32 = FilReader("/home/jovyan/work/phys641data/Data/blank_sky_masked_f1_t32.fil") 
+tfac=16 # use slightly less downsampling than in the example ... sacrifice a bit of evaluation speed for more finely sampled results
+p_masked.downsample(tfactor=tfac)
+p_masked_downsampled=FilReader('pulsardata_masked_f1_t'+str(tfac)+'.fil') # off_Fil_32 = FilReader("/home/jovyan/work/phys641data/Data/blank_sky_masked_f1_t32.fil") 
 p_downsampled_block=p_masked_downsampled.read_block(0,p_masked_downsampled.header.nsamples) # off_data_32 = off_Fil_32.read_block(0, off_Fil_32.header.nsamples, off_Fil_32.header.fch1, off_Fil_32.header.nchans)
 p_masked_downsampled_normalized=p_downsampled_block.normalise()  # normalize data within each channel
 print('done normalizing')
@@ -277,8 +278,8 @@ plt.show()
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
 ctrdm=30 # dmt_transform searches a range of dms symmetric about the specified center, according to the source code, so I'll provide the center of this region and use this center to figure out the number of steps required to get my desired spacing (set by the limit of the instrument) dm_arr = dm + np.linspace(-dm, dm, dmsteps)
-pdt_new=p_masked_downsampled.header.tsamp
-deltaDM=pdt_new/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
+pdt_downsampled=p_masked_downsampled.header.tsamp
+deltaDM=pdt_downsampled/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
 print('deltaDM=',deltaDM)
 DMrange=2*ctrdm # want to search 10 to 50, but dmt_transform searches 0 to 2*dm, and I'd rather have symmetric regions outside the most likely one (because I don't know if an abnormally low or high dm is more likely), so I call with 30 as the center and not 25 or anything else
 ndmsteps=int(DMrange/deltaDM)
@@ -288,7 +289,7 @@ dm_t=p_masked_downsampled_normalized.dmt_transform(ctrdm,dmsteps=ndmsteps) # ful
 
 pt0obj=Time(pt0,format='mjd')
 pt0iso=pt0obj.iso
-ptimes0=np.arange(pns)*pdt_new # like caltimes0=np.arange(0,calns)*caldt
+ptimes0=np.arange(pns)*pdt_downsampled # like caltimes0=np.arange(0,calns)*caldt
 plt.figure(figsize=(10,5))
 plt.imshow(dm_t.data,extent=[ptimes0[0],ptimes0[-1],2*ctrdm,0],aspect=2) # L,R,B,T
 cbar=plt.colorbar()
@@ -300,8 +301,9 @@ plt.show()
 
 # 4. search for periodic signal in Fourier space
 dm_f=np.fft.rfft(dm_t.data).real # we don't care about the imag part bc the rfft of a real-valued array is purely real (no risk of losing info here)
-pfreqs=np.fft.rfftfreq(p_masked_downsampled.header.nsamples,d=p_masked_downsampled.header.tsamp) # as many frequencies as number of time samples, from a time array with spacing pdt_new
-print('pfreqs=',pfreqs)
+downsampled_nsamp=p_masked_downsampled.header.nsamples
+downsampled_tsamp=p_masked_downsampled.header.tsamp
+pfreqs=np.fft.rfftfreq(downsampled_nsamp,d=downsampled_tsamp) # as many frequencies as number of time samples, from a time array with spacing pdt_downsampled
 plt.figure(figsize=(10,5))
 plt.imshow(dm_f,extent=[pfreqs[0],pfreqs[-1],2*ctrdm,0],aspect=0.5) #,norm='log',vmax=np.percentile(dm_f,99))
 cbar=plt.colorbar()
@@ -319,28 +321,24 @@ best_dm=dm_t.dms[bestloc[0]]
 print('SNR-maximizing DM is',best_dm)
 
 # 5. fold data to find pulse
-print('pdt_new=',pdt_new)
-n_folded_bins=int(best_period//pdt_new)
-print("n_folded_bins=",n_folded_bins,"; nbands*nints*nbins=",1024*n_folded_bins,"vs. nsteps=",p_masked.header.nsamples)
+n_folded_bins=int(best_period//pdt_downsampled)
+p_folded_3d=p_masked_downsampled.fold(best_period,best_dm,nints=1,nbands=1024,nbins=n_folded_bins)
+p_folded_2d=p_folded_3d.data[0] # store the one integration we specified in 2d format
+p_folded_1d=np.nanmean(p_folded_2d,axis=0) # sum over frequency channels
+downsampled_folded_times=np.linspace(0,best_period,n_folded_bins)
 
-# off_Fil_32.fold(0.5,2,nints=1,nbands=1024,nbins=int(0.5//off_Fil_32.header.tsamp))
-p_folded=p_masked_downsampled.fold(best_period,best_dm,nints=1,nbands=1024,nbins=n_folded_bins)
-
-
-# * weird spikes amidst the nans when I use 1/freq
-print('p_folded.data=',p_folded.data)
-p_folded_1d=np.nanmean(p_folded.data[0],axis=0) # printed shape is (1,1024,47) and we want to sum over frequency channels
-# print('p_folded_profile.shape',p_folded_profile.shape)
-plt.figure()
-plt.plot(p_folded_1d)
+plt.figure(figsize=(10,5))
+plt.imshow(p_folded_2d,aspect=5e-3,extent=[downsampled_folded_times[0],downsampled_folded_times[-1],bskfreqs[-1],bskfreqs[0]]) # L,R,B,T
+cbar=plt.colorbar()
+cbar.set_label('S/N')
+plt.xlabel('time (s)')
+plt.ylabel('freq (Hz)')
+plt.title('Folded pulse profile waterfall')
 plt.show()
-# # off_data_32_folded = off_Fil_32.fold(0.5,2,nints=1,nbands=1024,nbins=int(0.5//off_Fil_32.header.tsamp))
-# plt.figure()
-# # plt.imshow(off_data_32_folded.data[0,:,:],aspect='auto',interpolation='nearest')
-# plt.imshow()
-# plt.colorbar()
-# plt.xlabel('Time [samples]')
-# plt.ylabel('Freq. [channel]')
-# plt.show()
 
-# Tldr upshot of a 208 discussion: internally, dmt_transform creates dm_arr = dm + np.linspace(-dm, dm, dmsteps), so manipulate your Δdm accordingly
+plt.figure()
+plt.plot(downsampled_folded_times,p_folded_1d)
+plt.xlabel('time (s)')
+plt.ylabel('S/N')
+plt.title('Frequency-averaged, folded pulse profile')
+plt.show()
