@@ -192,13 +192,13 @@ if part1plots:
 S400=0.15
 alpha=-1.5
 S0=S400*(400e6)**(-alpha) # S=S0*nu**alpha; S400=S0*(400e6)**(-1.5) -> S0=S400*(400e6)**1.5
-# print('S0',S0)
 Spulsar=S0*(calfreqs*1e6)**alpha # the units work out if I use the Hz version (not MHz)
 plt.figure()
 plt.plot(calfreqs,Spulsar)
-plt.title('check theo pulsar power law')
+plt.title('Theoretical pulsar power law')
 plt.xlabel('frequency (MHz)')
 plt.ylabel('spectral flux density (Jy)')
+plt.savefig('theo_pulsar_pwr_law.png',dpi=hires)
 plt.show()
 calmaskchanmask=calmask.chan_mask
 bskmaskchanmask=bskmask.chan_mask
@@ -209,19 +209,20 @@ def SNR(Spulsar,N,Ssys):
     return Spulsar*np.sqrt(N)/Ssys
 
 SNR1pulse=SNR(Spulsar,1,bskmasked)
-snr1mean=np.nanmean(SNR1pulse)
+snr1mean=np.nanmean(SNR1pulse) # anywhere I use nan-prefixed versions of regular numpy functions in this script, I just want to get some statistical info while ignoring masked channels
 snr1max=np.nanmax(SNR1pulse)
 snr1min=np.nanmin(SNR1pulse)
+print('mean    SNR of one pulse:',snr1mean)
+print('minimum SNR of one pulse:',snr1min)
+print('maximum SNR of one pulse:',snr1max)
 
-plottheospec=False
-if plottheospec:
-    plt.figure()
-    plt.plot(calfreqs,SNR1pulse)
-    plt.xlabel('frequency (MHz)')
-    plt.ylabel('dimensionless, unitless SNR proportionality')
-    plt.title('RHS of SNR proportionality for N=1 and the POWER LAW pulsar spectrum')
-    plt.savefig('one_pulse_theo_snr.png')
-    plt.show()
+plt.figure()
+plt.plot(calfreqs,SNR1pulse)
+plt.xlabel('frequency (MHz)')
+plt.ylabel('dimensionless, unitless SNR proportionality')
+plt.title('RHS of SNR proportionality for N=1 and the POWER LAW pulsar spectrum')
+plt.savefig('one_pulse_theo_snr.png',dpi=hires)
+plt.show()
 
 meanSNR1pulse=np.nanmean(SNR1pulse)
 N_from_mean=(2./snr1mean)**2 # factor_by_which_you_need_to_increase_snr=2./meanSNR1 = sqrt(N_required) -> N_required = (2./meanSNR1)**2
@@ -257,11 +258,11 @@ if checkfreqs:
     print('calfreqs==bskfreqs?',(calfreqs==bskfreqs).all()) # since this prints out True, there's no need to worry about different spectra originally prepared at the calibrator / blank sky frequencies having different frequency values for the same array indices ... the sort of less hacky way to do this would have been to check that the f0, df, and nchan were all the same
 
 tfac=16 # use slightly less downsampling than in the example ... sacrifice a bit of evaluation speed for more finely sampled results
-p_masked.downsample(tfactor=tfac)
+p_masked.downsample(tfactor=tfac) # downsample by a factor of tfactor
 p_masked_downsampled=FilReader('pulsardata_masked_f1_t'+str(tfac)+'.fil') # off_Fil_32 = FilReader("/home/jovyan/work/phys641data/Data/blank_sky_masked_f1_t32.fil") 
 p_downsampled_block=p_masked_downsampled.read_block(0,p_masked_downsampled.header.nsamples) # off_data_32 = off_Fil_32.read_block(0, off_Fil_32.header.nsamples, off_Fil_32.header.fch1, off_Fil_32.header.nchans)
 p_masked_downsampled_normalized=p_downsampled_block.normalise()  # normalize data within each channel
-print('done normalizing')
+# print('done normalizing')
 pnormeddata=p_masked_downsampled_normalized.data
 
 plt.figure(figsize=(10,5))
@@ -272,6 +273,7 @@ plt.title('Normalized pulsar data')
 cbar=plt.colorbar()
 cbar.set_label('Flux (ADU)')
 plt.tight_layout()
+plt.savefig('normed_pulsar_data.png',dpi=hires)
 plt.show()
 
 # 3. DM transform
@@ -280,10 +282,10 @@ kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
 ctrdm=30 # dmt_transform searches a range of dms symmetric about the specified center, according to the source code, so I'll provide the center of this region and use this center to figure out the number of steps required to get my desired spacing (set by the limit of the instrument) dm_arr = dm + np.linspace(-dm, dm, dmsteps)
 pdt_downsampled=p_masked_downsampled.header.tsamp
 deltaDM=pdt_downsampled/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
-print('deltaDM=',deltaDM)
+# print('deltaDM=',deltaDM)
 DMrange=2*ctrdm # want to search 10 to 50, but dmt_transform searches 0 to 2*dm, and I'd rather have symmetric regions outside the most likely one (because I don't know if an abnormally low or high dm is more likely), so I call with 30 as the center and not 25 or anything else
 ndmsteps=int(DMrange/deltaDM)
-print('number of DM steps to take at the minimum sensible spacing =',ndmsteps)
+# print('number of DM steps to take at the minimum sensible spacing =',ndmsteps)
 dm_t=p_masked_downsampled_normalized.dmt_transform(ctrdm,dmsteps=ndmsteps) # full call that takes 40ish minutes to run
 # ^^ initial guess for dm = median of the range 10 to 50 that is apparently characteristic of pulsars
 
@@ -291,19 +293,43 @@ pt0obj=Time(pt0,format='mjd')
 pt0iso=pt0obj.iso
 ptimes0=np.arange(pns)*pdt_downsampled # like caltimes0=np.arange(0,calns)*caldt
 plt.figure(figsize=(10,5))
-plt.imshow(dm_t.data,extent=[ptimes0[0],ptimes0[-1],2*ctrdm,0],aspect=2) # L,R,B,T
+plt.imshow(dm_t.data,extent=[ptimes0[0],ptimes0[-1],2*ctrdm,0],aspect=2) # extent=[L,R,B,T]
 cbar=plt.colorbar()
 cbar.set_label('S/N')
 plt.xlabel('time (s) after '+pt0iso)
 plt.ylabel('DM ')
 plt.title('DM-time grid')
+plt.savefig('dm_t_grid.png',dpi=hires)
 plt.show()
 
 # 4. search for periodic signal in Fourier space
-dm_f=np.fft.rfft(dm_t.data).real # we don't care about the imag part bc the rfft of a real-valued array is purely real (no risk of losing info here)
-downsampled_nsamp=p_masked_downsampled.header.nsamples
-downsampled_tsamp=p_masked_downsampled.header.tsamp
+dm_f=np.abs(np.fft.rfft(dm_t.data)) # we don't care about the imag part b/c the rfft of a real-valued array is purely real (no risk of losing info here)
+downsampled_nsamp=p_masked_downsampled.header.nsamples # number of samples in the downsampled data
+downsampled_tsamp=p_masked_downsampled.header.tsamp # length of a sample in the downsampled data
 pfreqs=np.fft.rfftfreq(downsampled_nsamp,d=downsampled_tsamp) # as many frequencies as number of time samples, from a time array with spacing pdt_downsampled
+
+chan_cutoff=60
+dm_f_slice=np.abs(dm_f)[:,:chan_cutoff]
+fundamental_loc=np.unravel_index(dm_f_slice.argmax(), dm_f_slice.shape) # SNR-maximizing indices
+direct_fundamental_freq=pfreqs[fundamental_loc[1]]
+direct_fundamental_period=1./direct_fundamental_freq
+
+bestloc=np.unravel_index((np.abs(dm_f)).argmax(), dm_f.shape)
+print('maximal SNR is',dm_f[bestloc])
+best_freq=pfreqs[bestloc[1]]/2. # argmax yields the first harmonic ... divide by two to get the fundamental
+best_period=1./best_freq
+print('SNR-maximizing period is',best_period)
+best_dm=dm_t.dms[bestloc[0]]
+print('SNR-maximizing DM is',best_dm)
+########################################################
+
+# TRY THE WEIGHTED AVERAGE TO IDENTIFY THE BEST FREQ AND DM
+abs_dm_f=np.abs(dm_f)
+columnwise_weights=np.sum(abs_dm_f,axis=1)
+possible_dms=np.arange(0,2*ctrdm,deltaDM)[:-1]
+weighted_best_dm=np.average(possible_dms,weights=columnwise_weights)
+print('WEIGHTED best_dm=',weighted_best_dm)
+
 plt.figure(figsize=(10,5))
 plt.imshow(dm_f,extent=[pfreqs[0],pfreqs[-1],2*ctrdm,0],aspect=0.5) #,norm='log',vmax=np.percentile(dm_f,99))
 cbar=plt.colorbar()
@@ -311,29 +337,28 @@ cbar.set_label('S/N')
 plt.xlabel('frequency (Hz), calculated from time (s) after '+pt0iso)
 plt.ylabel('DM')
 plt.title('DM-frequency grid')
+plt.savefig('dm_f_grid.png',dpi=hires)
 plt.show()
-bestloc=np.unravel_index((np.abs(dm_f)).argmax(), dm_f.shape)
-print('maximal SNR is',dm_f[bestloc])
-best_freq=pfreqs[bestloc[1]]
-best_period=1./best_freq
-print('SNR-maximizing period is',best_period)
-best_dm=dm_t.dms[bestloc[0]]
-print('SNR-maximizing DM is',best_dm)
 
 # 5. fold data to find pulse
 n_folded_bins=int(best_period//pdt_downsampled)
-p_folded_3d=p_masked_downsampled.fold(best_period,best_dm,nints=1,nbands=1024,nbins=n_folded_bins)
+# p_folded_3d=p_masked.fold(best_period,best_dm,nints=1,nbands=1024,nbins=n_folded_bins) # previously, I'd been folding the downsampled data
+p_folded_3d=p_masked.fold(best_period,weighted_best_dm,nints=1,nbands=1024,nbins=n_folded_bins) # weighted averaging for dm but still the ad hoc /2 in freq to get the fundamental
+# p_folded_3d=p_masked.fold(direct_fundamental_period,weighted_best_dm,nints=1,nbands=1024,nbins=n_folded_bins) # weighted averaging for dm AND literal accessing of the fundamental freq ... still looks bad
+# p_folded_3d=p_masked.fold(1./3.44,28.42,nints=1,nbands=1024,nbins=n_folded_bins) # Josh's numbers
+
 p_folded_2d=p_folded_3d.data[0] # store the one integration we specified in 2d format
 p_folded_1d=np.nanmean(p_folded_2d,axis=0) # sum over frequency channels
 downsampled_folded_times=np.linspace(0,best_period,n_folded_bins)
 
 plt.figure(figsize=(10,5))
-plt.imshow(p_folded_2d,aspect=5e-3,extent=[downsampled_folded_times[0],downsampled_folded_times[-1],bskfreqs[-1],bskfreqs[0]]) # L,R,B,T
+plt.imshow(p_folded_2d,aspect=5e-4,extent=[downsampled_folded_times[0],downsampled_folded_times[-1],bskfreqs[-1],bskfreqs[0]]) # L,R,B,T
 cbar=plt.colorbar()
 cbar.set_label('S/N')
 plt.xlabel('time (s)')
 plt.ylabel('freq (Hz)')
 plt.title('Folded pulse profile waterfall')
+plt.savefig('folded_2d.png',dpi=hires)
 plt.show()
 
 plt.figure()
@@ -341,4 +366,5 @@ plt.plot(downsampled_folded_times,p_folded_1d)
 plt.xlabel('time (s)')
 plt.ylabel('S/N')
 plt.title('Frequency-averaged, folded pulse profile')
+plt.savefig('folded_1d.png',dpi=hires)
 plt.show()
