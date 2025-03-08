@@ -342,10 +342,7 @@ plt.show()
 
 # 5. fold data to find pulse
 n_folded_bins=int(best_period//pdt_downsampled)
-# p_folded_3d=p_masked.fold(best_period,best_dm,nints=1,nbands=1024,nbins=n_folded_bins) # previously, I'd been folding the downsampled data
 p_folded_3d=p_masked.fold(best_period,weighted_best_dm,nints=1,nbands=1024,nbins=n_folded_bins) # weighted averaging for dm but still the ad hoc /2 in freq to get the fundamental
-# p_folded_3d=p_masked.fold(direct_fundamental_period,weighted_best_dm,nints=1,nbands=1024,nbins=n_folded_bins) # weighted averaging for dm AND literal accessing of the fundamental freq ... still looks bad
-# p_folded_3d=p_masked.fold(1./3.44,28.42,nints=1,nbands=1024,nbins=n_folded_bins) # Josh's numbers
 
 p_folded_2d=p_folded_3d.data[0] # store the one integration we specified in 2d format
 p_folded_1d=np.nanmean(p_folded_2d,axis=0) # sum over frequency channels
