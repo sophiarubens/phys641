@@ -5,10 +5,11 @@ from astropy.time import Time
 
 # it seems like pulsar spectral indices are never steeper than about -4 ... from that paper
 
-srubensid=261215947
-data3=FilReader('data_'+str(srubensid)+'.fil')
+# id_of_interest=261215947 # me
+id_of_interest=260374104 # test w/ a random classmate's data ... formalize this later with a loop over all or something
+data3=FilReader('data_'+str(id_of_interest)+'.fil')
 _, data3mask=data3.clean_rfi(method='mad',threshold=3.)
-data3_masked=FilReader('data_'+str(srubensid)+'_masked.fil') # use the RFI-flagged version of the data
+data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
 
 data3head=data3.header
 data3_t0=data3head.tstart # reference/ start time of observations
@@ -28,7 +29,7 @@ data3_filedata=data3_maskedblock.data
 
 tfac=16 # use slightly less downsampling than in the example ... sacrifice a bit of evaluation speed for more finely sampled results
 data3_masked.downsample(tfactor=tfac) # downsample by a factor of tfactor
-data3_masked_downsampled=FilReader('data_'+str(srubensid)+'_masked_f1_t'+str(tfac)+'.fil')
+data3_masked_downsampled=FilReader('data_'+str(id_of_interest)+'_masked_f1_t'+str(tfac)+'.fil')
 data3mdhead=data3_masked_downsampled.header # md is short for _masked_downsampled
 data3md_dt=data3mdhead.tsamp
 data3md_ns=data3mdhead.nsamples 
@@ -47,32 +48,15 @@ plt.figure(figsize=(10,5))
 plt.imshow(pnormeddata,extent=[data3_times0[0],data3_times0[-1],data3_freqs[-1],data3_freqs[0]],aspect=1e-2,vmin=np.percentile(pnormeddata,1),vmax=np.percentile(pnormeddata,99))
 plt.xlabel('time (s) after '+data3_t0iso)
 plt.ylabel('frequency (MHz)')
-plt.title('Normalized part 3 data for ID '+str(srubensid))
+plt.title('Normalized part 3 data for ID '+str(id_of_interest))
 cbar=plt.colorbar()
 cbar.set_label('Flux (ADU)')
 plt.tight_layout()
-plt.savefig('normed_'+str(srubensid)+'_data.png',dpi=hires)
+plt.savefig('normed_'+str(id_of_interest)+'_data.png',dpi=hires)
 plt.show()
 
 # setup for matched filter loops
 spectral_index=-1.4 # mean finding from doi:10.1093/mnras/stt257
-
-start_time_lo=data3_t0 # do NOT work with zero-based times; use the actual values
-start_time_hi=data3_times[-1]
-n_start_times_to_test=100
-start_times_to_test=np.linspace(start_time_lo,start_time_hi,n_start_times_to_test)
-
-period_lo=1.4e-3
-log_period_lo=np.log(period_lo)
-period_hi=8.5
-log_period_hi=np.log(period_hi)
-n_periods_to_test=100 # use logspace b/c large dynamic range
-periods_to_test=np.logspace(period_lo,period_hi,n_periods_to_test) # https://www.cv.nrao.edu/~sransom/web/Ch6.html ; logspace needs powers of ten
-
-log_width_lo=log_period_lo-3 # start w/ a lower bound of 3 OoM smaller than the shortest considered period, trying to acknowledge "The measured width of pulsar profiles is typically less than 10 per cent of the pulse period." https://doi.org/10.1111/j.1365-2966.2009.15926.x 
-log_width_hi=log_period_hi-1 # in line with the statement in the paper referenced above
-n_widths_to_test=100
-widths_to_test=np.logspace(log_width_lo,log_width_hi,n_widths_to_test)
 
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
@@ -91,16 +75,9 @@ for i,dm in enumerate(dm_vec): # consider the DM candidates
     dm_t_array[i,:] = dedisp_array.get_tim().data # sum over frequency channels to get the dedispersed data for that time and DM
 
 bestloc=np.unravel_index((np.abs(dm_t_array)).argmax(), dm_t_array.shape)
-print('maximal SNR is',dm_t_array[bestloc])
-print('array of possible start times:',data3md_times0)
-print('bestloc[1]=',bestloc[1])
-print('len(data3md_times0)=',len(data3md_times0))
-print('dm_t_array[bestloc]=',dm_t_array[bestloc])
 best_start_time=data3md_times0[bestloc[1]]
-# best_start_time=data3md_times0[bestloc[0]] # not out of bounds
 print('SNR-maximizing start time is',best_start_time)
 best_dm=dm_vec[bestloc[0]]
-# best_dm=dm_vec[bestloc[1]] # out of bounds
 print('SNR-maximizing DM is',best_dm)
 
 plt.figure(figsize=(10,5))
@@ -109,8 +86,8 @@ plt.colorbar()
 plt.scatter(best_start_time,best_dm)
 plt.xlabel('time (s) after '+str(data3_t0iso))
 plt.ylabel('DM (pc cm^{-3})')
-plt.title('DM-time grid for '+str(srubensid))
-plt.savefig('dm_t_array_'+str(srubensid)+'.png',dpi=hires)
+plt.title('DM-time grid for '+str(id_of_interest))
+plt.savefig('dm_t_array_'+str(id_of_interest)+'.png',dpi=hires)
 plt.show() # since I only see one maximum, it's not worth searching in Fourier space ... doing a Fourier analysis would merely reveal that the zero-frequency component dominates (possibly with some ring-down)
 
 # dm_f_array=np.abs(np.fft.rfft(dm_t_array))
@@ -120,39 +97,34 @@ plt.show() # since I only see one maximum, it's not worth searching in Fourier s
 # plt.colorbar()
 # plt.xlabel('frequency (Hz), referenced to 1/time after time='+str(data3_t0iso))
 # plt.ylabel('DM (pc cm^{-3})')
-# plt.title('DM-frequency grid for '+str(srubensid))
+# plt.title('DM-frequency grid for '+str(id_of_interest))
 # plt.show() # expect to see only the zero-freq component b/c we only see one instance of an alien signal...
 
-for i,start_time in enumerate(start_times_to_test):
-    for j,period in enumerate(periods_to_test):
-        for k,width in enumerate(widths_to_test):
-            pass
+#############
+period_lo=np.max((best_start_time,10.-best_start_time)) # lower bound on period: longest stretch in the data before or after a negative-DM signal (whether it comes before or after the signal we observe isn't important)
+log_period_lo=1. # the period can't be shorter than 10 s
+log_period_hi=2.
+n_periods_to_test=5
+periods_to_test=np.logspace(log_period_lo,log_period_hi,n_periods_to_test)
 
+log_width_lo=log_period_lo-3 # start w/ a lower bound of 3 OoM smaller than the shortest considered period, trying to acknowledge "The measured width of pulsar profiles is typically less than 10 per cent of the pulse period." https://doi.org/10.1111/j.1365-2966.2009.15926.x 
+log_width_hi=log_period_hi-1 # in line with the statement in the paper referenced above
+n_widths_to_test=100
+widths_to_test=np.logspace(log_width_lo,log_width_hi,n_widths_to_test)
 
-# ###
-# # 5. fold data to find pulse
-# n_folded_bins=int(best_period//pdt_downsampled)
-# p_folded_3d=p_masked.fold(best_period,weighted_best_dm,nints=1,nbands=1024,nbins=n_folded_bins) # weighted averaging for dm but still the ad hoc /2 in freq to get the fundamental
+for i,test_period in enumerate(periods_to_test):
+    n_fold_bins=int(test_period//data3md_dt)
+    data3_folded_3d=data3_masked.fold(test_period,best_dm,nints=1,nbands=1024,nbins=n_fold_bins)
+    data3_folded_2d=data3_folded_3d.data[0] # store the one integration we specified in 2d format
+    data3_folded_1d=np.nanmean(data3_folded_2d,axis=0) # sum over frequency channels
+    downsampled_folded_times=np.linspace(0,test_period,n_fold_bins)
 
-# p_folded_2d=p_folded_3d.data[0] # store the one integration we specified in 2d format
-# p_folded_1d=np.nanmean(p_folded_2d,axis=0) # sum over frequency channels
-# downsampled_folded_times=np.linspace(0,best_period,n_folded_bins)
-
-# plt.figure(figsize=(10,5))
-# plt.imshow(p_folded_2d,aspect=5e-4,extent=[downsampled_folded_times[0],downsampled_folded_times[-1],bskfreqs[-1],bskfreqs[0]]) # L,R,B,T
-# cbar=plt.colorbar()
-# cbar.set_label('S/N')
-# plt.xlabel('time (s)')
-# plt.ylabel('freq (Hz)')
-# plt.title('Folded pulse profile waterfall')
-# plt.savefig('folded_2d.png',dpi=hires)
-# plt.show()
-
-# plt.figure()
-# plt.plot(downsampled_folded_times,p_folded_1d)
-# plt.xlabel('time (s)')
-# plt.ylabel('S/N')
-# plt.title('Frequency-averaged, folded pulse profile')
-# plt.savefig('folded_1d.png',dpi=hires)
-# plt.show()
-# ###
+    #
+    plt.figure()
+    plt.plot(downsampled_folded_times,data3_folded_1d)
+    plt.xlabel('time (s)')
+    plt.ylabel('S/N')
+    plt.title('Frequency-averaged, folded pulse profile for period{:7.2f}'.format(test_period))
+    plt.savefig('folded_1d.png',dpi=hires)
+    plt.show()
+    #
