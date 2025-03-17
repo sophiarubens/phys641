@@ -102,16 +102,16 @@ plt.show() # since I only see one maximum, it's not worth searching in Fourier s
 
 #############
 period_lo=np.max((best_start_time,10.-best_start_time)) # lower bound on period: longest stretch in the data before or after a negative-DM signal (whether it comes before or after the signal we observe isn't important)
-log_period_lo=1. # the period can't be shorter than 10 s
-log_period_hi=2.
-n_periods_to_test=5
-periods_to_test=np.logspace(log_period_lo,log_period_hi,n_periods_to_test)
+period_hi=10. # this data can't tell us anything about the plausibility of periods any longer than 10 seconds
+n_periods_to_test=16
+periods_to_test=np.linspace(period_lo,period_hi,n_periods_to_test)
 
-log_width_lo=log_period_lo-3 # start w/ a lower bound of 3 OoM smaller than the shortest considered period, trying to acknowledge "The measured width of pulsar profiles is typically less than 10 per cent of the pulse period." https://doi.org/10.1111/j.1365-2966.2009.15926.x 
-log_width_hi=log_period_hi-1 # in line with the statement in the paper referenced above
+log_width_lo=np.log10(period_lo)-3 # start w/ a lower bound of 3 OoM smaller than the shortest considered period, trying to acknowledge "The measured width of pulsar profiles is typically less than 10 per cent of the pulse period." https://doi.org/10.1111/j.1365-2966.2009.15926.x 
+log_width_hi=np.log10(period_hi)-1 # in line with the statement in the paper referenced above
 n_widths_to_test=100
 widths_to_test=np.logspace(log_width_lo,log_width_hi,n_widths_to_test)
 
+fig,axs=plt.subplots(4,4,figsize=(25,10))
 for i,test_period in enumerate(periods_to_test):
     n_fold_bins=int(test_period//data3md_dt)
     data3_folded_3d=data3_masked.fold(test_period,best_dm,nints=1,nbands=1024,nbins=n_fold_bins)
@@ -119,12 +119,13 @@ for i,test_period in enumerate(periods_to_test):
     data3_folded_1d=np.nanmean(data3_folded_2d,axis=0) # sum over frequency channels
     downsampled_folded_times=np.linspace(0,test_period,n_fold_bins)
 
-    #
-    plt.figure()
-    plt.plot(downsampled_folded_times,data3_folded_1d)
-    plt.xlabel('time (s)')
-    plt.ylabel('S/N')
-    plt.title('Frequency-averaged, folded pulse profile for period{:7.2f}'.format(test_period))
-    plt.savefig('folded_1d.png',dpi=hires)
-    plt.show()
-    #
+    row=i//4
+    col=i%4
+    axs[row,col].plot(downsampled_folded_times,data3_folded_1d)
+    axs[row,col].set_xlabel('time (s)')
+    axs[row,col].set_ylabel('S/N')
+    axs[row,col].set_title('period {:7.2f}'.format(test_period))
+plt.suptitle('Frequency-averaged, folded pulse profiles for several candidate periods')
+plt.tight_layout()
+plt.savefig('period_candidates_for_fold.png',dpi=hires)
+plt.show() # ok yes naturally they have the same shape but just different shift ... we're not aiming to constrain the period, anyway, so, I guess this is just proof-of-concept... mostly this folded data is just useful for determining the pulse width (any of the subplot cases will do, so might as well use the last one since it's already hanging around)
