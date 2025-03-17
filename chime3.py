@@ -102,19 +102,11 @@ plt.show() # since I only see one maximum, it's not worth searching in Fourier s
 
 dedispersed_2d=data3_masked_downsampled_normalized.dedisperse(best_dm)
 dedispersed_pulse_profile=dedispersed_2d.get_tim().data
-# plt.figure()
-# plt.plot(dedispersed_pulse_profile)
-# plt.show()
-# assert(1==0)
 
 ##### PULSE WIDTH SEARCH
-# IMPLEMENT THE LOOPS HERE
-# AMOUNT OF TIME THE SIGNAL IS ABOVE A CERTAIN SNR?
-# FIT A GAUSSIAN AND USE THE FWHM OR SIGMA OR SOMETHING MORE STATISTICAL LIKE THAT??
-
 width_lo=data3md_dt # can't expect to identify a pulse narrower than the minimum time spacing of samples in the dataset
-widths_hi=[1.,0.05,0.015]
-# width_hi=1. # by inspection, I'd be shocked if the pulse occupied more than 10% of the time samples in the ten-second dataset
+widths_hi=[1.,0.05]
+width_case_titles=['entire plausible range','inset'] # by inspection of even just the pre-dedispersion waterfall plot, I'd be shocked if the pulse occupied more than 10% of the time samples in the ten-second dataset ... but upon looking more closely, even this is far too conservative a guess, hence the inset
 n_widths_to_test=100
 
 def pulse_template(centre,width,times):
@@ -125,20 +117,21 @@ def pulse_template(centre,width,times):
     '''
     return np.exp(-(times-centre)**2/(2.*width))
 
-correlations_varying_width=np.zeros((data3md_ns,n_widths_to_test))
-fig,axs=plt.subplots(1,3,figsize=(12,4))
+correlations_varying_width=np.zeros(n_widths_to_test)
+fig,axs=plt.subplots(1,2,figsize=(8,6))
 for i,width_hi in enumerate(widths_hi):
     widths_to_test=np.linspace(width_lo,width_hi,n_widths_to_test)
     for j,test_width in enumerate(widths_to_test):
         template_current_width=pulse_template(best_start_time,test_width,data3md_times0)
-        correlations_varying_width[:,j]=np.correlate(dedispersed_pulse_profile,template_current_width)
+        correlations_varying_width[j]=np.linalg.norm(np.correlate(dedispersed_pulse_profile,template_current_width))
 
-    # plt.figure()
-    axs[i].imshow(correlations_varying_width)
+    axs[i].plot(widths_to_test,correlations_varying_width)
     axs[i].set_xlabel('pulse width (s)')
-    axs[i].set_ylabel('correlation [dimensionless]')
-    axs[i].set_title('pulse with inset '+str(i))
-plt.suptitle('pulse profile template-data correlation for several pulse width ranges')
+    axs[i].set_ylabel('timeseries norm of correlation amplitude [dimensionless]')
+    axs[i].set_title(width_case_titles[i])
+best_pulse_width=widths_to_test[np.argmax(correlations_varying_width)]
+axs[1].axvline(best_pulse_width,c='r')
+plt.suptitle('pulse profile template-data correlation')
 plt.tight_layout()
-plt.savefig('pulse width identification')
+plt.savefig('pulse_width_identification.png')
 plt.show()
