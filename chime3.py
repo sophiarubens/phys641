@@ -3,17 +3,16 @@ from matplotlib import pyplot as plt
 from sigpyproc.readers import FilReader
 from astropy.time import Time
 
-##### UNDERSTAND THE SINGLE-PULSE NOISE VIA SNR ANALYSIS -> NUMBER OF FOLDS REQUIRED FOR A CERTAIN SNR 
-# spectral_index=-1.4 # mean finding from [doi:10.1093/mnras/stt257]
-# pulsar indices are never steeper than about -4 [https://doi.org/10.1093/mnras/stx2476], and physical intuition says they should all have nonpositive spectral indices
-
-##### DM AND BOUND ON PERIOD FROM A DM-TIME GRID ANALYSIS
-# id_of_interest=261215947 # me
-id_of_interest=260374104 # test w/ a random classmate's data ... formalize this later with a loop over all or something
+id_of_interest=261215947 # me
+# id_of_interest=260374104 # test w/ a random classmate's data ... formalize this later with a loop over all or something
 data3=FilReader('data_'+str(id_of_interest)+'.fil')
 _, data3mask=data3.clean_rfi(method='mad',threshold=3.)
 data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
 
+##### UNDERSTAND THE SINGLE-PULSE NOISE VIA SNR ANALYSIS -> NUMBER OF FOLDS REQUIRED FOR A CERTAIN SNR 
+# spectral_index=-1.4 # mean finding from [doi:10.1093/mnras/stt257]
+# pulsar indices are never steeper than about -4 [https://doi.org/10.1093/mnras/stx2476], and physical intuition says they should all have nonpositive spectral indices
+# unclear which quantities to use in the SNR RHS,, can't hurt to start with 
 data3head=data3.header
 data3_t0=data3head.tstart # reference/ start time of observations
 data3_dt=data3head.tsamp # time step between observations
@@ -30,6 +29,20 @@ data3_freqs=data3_fch1+data3_channels*data3_df # frequency vector is a linear fu
 data3_maskedblock=data3_masked.read_block(0,data3_ns) # data is accessible by reading a block
 data3_filedata=data3_maskedblock.data
 
+data3_t0obj=Time(data3_t0,format='mjd')
+data3_t0iso=data3_t0obj.iso
+hires=500
+
+### RE-CREATE THE TRANSFER FUNCTION
+###
+
+# plt.figure(figsize=(10,5))
+# plt.plot(data3_times0,data3_filedata)
+# plt.xlabel('time (s) after '+str(data3_t0iso))
+# plt.ylabel('flux')
+# plt.title()
+# plt.show()
+
 tfac=16 # use slightly less downsampling than in the example ... sacrifice a bit of evaluation speed for more finely sampled results
 data3_masked.downsample(tfactor=tfac) # downsample by a factor of tfactor
 data3_masked_downsampled=FilReader('data_'+str(id_of_interest)+'_masked_f1_t'+str(tfac)+'.fil')
@@ -43,10 +56,6 @@ data3_downsampled_block=data3_masked_downsampled.read_block(0,data3md_ns)
 data3_masked_downsampled_normalized=data3_downsampled_block.normalise()  # normalize data within each channel
 pnormeddata=data3_masked_downsampled_normalized.data
 
-data3_t0obj=Time(data3_t0,format='mjd')
-data3_t0iso=data3_t0obj.iso
-hires=500
-
 plt.figure(figsize=(10,5))
 plt.imshow(pnormeddata,extent=[data3_times0[0],data3_times0[-1],data3_freqs[-1],data3_freqs[0]],aspect=1e-2,vmin=np.percentile(pnormeddata,1),vmax=np.percentile(pnormeddata,99))
 plt.xlabel('time (s) after '+data3_t0iso)
@@ -58,7 +67,7 @@ plt.tight_layout()
 plt.savefig('normed_'+str(id_of_interest)+'_data.png',dpi=hires)
 plt.show()
 
-##### DM-TIME GRID SEARCH
+##### DM AND BOUND ON PERIOD FROM A DM-TIME GRID ANALYSIS
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
 deltaDM=data3md_dt/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
@@ -91,36 +100,45 @@ plt.title('DM-time grid for '+str(id_of_interest))
 plt.savefig('dm_t_array_'+str(id_of_interest)+'.png',dpi=hires)
 plt.show() # since I only see one maximum, it's not worth searching in Fourier space ... doing a Fourier analysis would merely reveal that the zero-frequency component dominates (possibly with some ring-down)
 
-##### PULSE WIDTH = ???
+dedispersed_2d=data3_masked_downsampled_normalized.dedisperse(best_dm)
+dedispersed_pulse_profile=dedispersed_2d.get_tim().data
+# plt.figure()
+# plt.plot(dedispersed_pulse_profile)
+# plt.show()
+# assert(1==0)
+
+##### PULSE WIDTH SEARCH
+# IMPLEMENT THE LOOPS HERE
 # AMOUNT OF TIME THE SIGNAL IS ABOVE A CERTAIN SNR?
 # FIT A GAUSSIAN AND USE THE FWHM OR SIGMA OR SOMETHING MORE STATISTICAL LIKE THAT??
-period_lo=np.max((best_start_time,10.-best_start_time)) # lower bound on period: longest stretch in the data before or after a negative-DM signal (whether it comes before or after the signal we observe isn't important)
-period_hi=10. # this data can't tell us anything about the plausibility of periods any longer than 10 seconds
-n_periods_to_test=16
-periods_to_test=np.linspace(period_lo,period_hi,n_periods_to_test)
 
-# log_width_lo=np.log10(period_lo)-3 # start w/ a lower bound of 3 OoM smaller than the shortest considered period, trying to acknowledge "The measured width of pulsar profiles is typically less than 10 per cent of the pulse period." https://doi.org/10.1111/j.1365-2966.2009.15926.x 
-# log_width_hi=np.log10(period_hi)-1 # in line with the statement in the paper referenced above
-# n_widths_to_test=100
-# widths_to_test=np.logspace(log_width_lo,log_width_hi,n_widths_to_test)
+width_lo=data3md_dt # can't expect to identify a pulse narrower than the minimum time spacing of samples in the dataset
+widths_hi=[1.,0.05,0.015]
+# width_hi=1. # by inspection, I'd be shocked if the pulse occupied more than 10% of the time samples in the ten-second dataset
+n_widths_to_test=100
 
-fig,axs=plt.subplots(4,4,figsize=(25,10))
-for i,test_period in enumerate(periods_to_test):
-    n_fold_bins=int(test_period//data3md_dt)
-    data3_folded_3d=data3_masked.fold(test_period,best_dm,nints=1,nbands=1024,nbins=n_fold_bins)
-    data3_folded_2d=data3_folded_3d.data[0] # store the one integration we specified in 2d format
-    data3_folded_1d=np.nanmean(data3_folded_2d,axis=0) # sum over frequency channels
-    downsampled_folded_times=np.linspace(0,test_period,n_fold_bins)
+def pulse_template(centre,width,times):
+    ''' Gaussian template for pulse search (arbitrary amplitude)
+    centre = mu
+    width  = sigma 
+    times  = array of times at which to evaluate the Gaussian template (should be the times for which you have data)
+    '''
+    return np.exp(-(times-centre)**2/(2.*width))
 
-    row=i//4
-    col=i%4
-    axs[row,col].plot(downsampled_folded_times,data3_folded_1d)
-    axs[row,col].set_xlabel('time (s)')
-    axs[row,col].set_ylabel('S/N')
-    axs[row,col].set_title('period {:7.2f}'.format(test_period))
-plt.suptitle('Frequency-averaged, folded pulse profiles for several candidate periods')
+correlations_varying_width=np.zeros((data3md_ns,n_widths_to_test))
+fig,axs=plt.subplots(1,3,figsize=(12,4))
+for i,width_hi in enumerate(widths_hi):
+    widths_to_test=np.linspace(width_lo,width_hi,n_widths_to_test)
+    for j,test_width in enumerate(widths_to_test):
+        template_current_width=pulse_template(best_start_time,test_width,data3md_times0)
+        correlations_varying_width[:,j]=np.correlate(dedispersed_pulse_profile,template_current_width)
+
+    # plt.figure()
+    axs[i].imshow(correlations_varying_width)
+    axs[i].set_xlabel('pulse width (s)')
+    axs[i].set_ylabel('correlation [dimensionless]')
+    axs[i].set_title('pulse with inset '+str(i))
+plt.suptitle('pulse profile template-data correlation for several pulse width ranges')
 plt.tight_layout()
-plt.savefig('period_candidates_for_fold.png',dpi=hires)
-plt.show() # ok yes naturally they have the same shape but just different shift ... we're not aiming to constrain the period, anyway, so, I guess this is just proof-of-concept... mostly this folded data is just useful for determining the pulse width (any of the subplot cases will do, so might as well use the last one since it's already hanging around)
-
-# IMPLEMENT THE WIDTH SEARCH ITSELF
+plt.savefig('pulse width identification')
+plt.show()
