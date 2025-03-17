@@ -3,8 +3,11 @@ from matplotlib import pyplot as plt
 from sigpyproc.readers import FilReader
 from astropy.time import Time
 
-# it seems like pulsar spectral indices are never steeper than about -4 ... from that paper
+##### UNDERSTAND THE SINGLE-PULSE NOISE VIA SNR ANALYSIS -> NUMBER OF FOLDS REQUIRED FOR A CERTAIN SNR 
+# spectral_index=-1.4 # mean finding from [doi:10.1093/mnras/stt257]
+# pulsar indices are never steeper than about -4 [https://doi.org/10.1093/mnras/stx2476], and physical intuition says they should all have nonpositive spectral indices
 
+##### DM AND BOUND ON PERIOD FROM A DM-TIME GRID ANALYSIS
 # id_of_interest=261215947 # me
 id_of_interest=260374104 # test w/ a random classmate's data ... formalize this later with a loop over all or something
 data3=FilReader('data_'+str(id_of_interest)+'.fil')
@@ -55,9 +58,7 @@ plt.tight_layout()
 plt.savefig('normed_'+str(id_of_interest)+'_data.png',dpi=hires)
 plt.show()
 
-# setup for matched filter loops
-spectral_index=-1.4 # mean finding from doi:10.1093/mnras/stt257
-
+##### DM-TIME GRID SEARCH
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
 deltaDM=data3md_dt/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
@@ -90,26 +91,18 @@ plt.title('DM-time grid for '+str(id_of_interest))
 plt.savefig('dm_t_array_'+str(id_of_interest)+'.png',dpi=hires)
 plt.show() # since I only see one maximum, it's not worth searching in Fourier space ... doing a Fourier analysis would merely reveal that the zero-frequency component dominates (possibly with some ring-down)
 
-# dm_f_array=np.abs(np.fft.rfft(dm_t_array))
-# data3_freqs=np.fft.fftfreq(data3md_ns,d=data3md_dt) # as many frequencies as number of time samples, from a time array with the DOWNSAMPLED spacing
-# plt.figure(figsize=(10,5))
-# plt.imshow(dm_f_array)
-# plt.colorbar()
-# plt.xlabel('frequency (Hz), referenced to 1/time after time='+str(data3_t0iso))
-# plt.ylabel('DM (pc cm^{-3})')
-# plt.title('DM-frequency grid for '+str(id_of_interest))
-# plt.show() # expect to see only the zero-freq component b/c we only see one instance of an alien signal...
-
-#############
+##### PULSE WIDTH = ???
+# AMOUNT OF TIME THE SIGNAL IS ABOVE A CERTAIN SNR?
+# FIT A GAUSSIAN AND USE THE FWHM OR SIGMA OR SOMETHING MORE STATISTICAL LIKE THAT??
 period_lo=np.max((best_start_time,10.-best_start_time)) # lower bound on period: longest stretch in the data before or after a negative-DM signal (whether it comes before or after the signal we observe isn't important)
 period_hi=10. # this data can't tell us anything about the plausibility of periods any longer than 10 seconds
 n_periods_to_test=16
 periods_to_test=np.linspace(period_lo,period_hi,n_periods_to_test)
 
-log_width_lo=np.log10(period_lo)-3 # start w/ a lower bound of 3 OoM smaller than the shortest considered period, trying to acknowledge "The measured width of pulsar profiles is typically less than 10 per cent of the pulse period." https://doi.org/10.1111/j.1365-2966.2009.15926.x 
-log_width_hi=np.log10(period_hi)-1 # in line with the statement in the paper referenced above
-n_widths_to_test=100
-widths_to_test=np.logspace(log_width_lo,log_width_hi,n_widths_to_test)
+# log_width_lo=np.log10(period_lo)-3 # start w/ a lower bound of 3 OoM smaller than the shortest considered period, trying to acknowledge "The measured width of pulsar profiles is typically less than 10 per cent of the pulse period." https://doi.org/10.1111/j.1365-2966.2009.15926.x 
+# log_width_hi=np.log10(period_hi)-1 # in line with the statement in the paper referenced above
+# n_widths_to_test=100
+# widths_to_test=np.logspace(log_width_lo,log_width_hi,n_widths_to_test)
 
 fig,axs=plt.subplots(4,4,figsize=(25,10))
 for i,test_period in enumerate(periods_to_test):
@@ -129,3 +122,5 @@ plt.suptitle('Frequency-averaged, folded pulse profiles for several candidate pe
 plt.tight_layout()
 plt.savefig('period_candidates_for_fold.png',dpi=hires)
 plt.show() # ok yes naturally they have the same shape but just different shift ... we're not aiming to constrain the period, anyway, so, I guess this is just proof-of-concept... mostly this folded data is just useful for determining the pulse width (any of the subplot cases will do, so might as well use the last one since it's already hanging around)
+
+# IMPLEMENT THE WIDTH SEARCH ITSELF
