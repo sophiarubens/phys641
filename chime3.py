@@ -33,7 +33,7 @@ data3mdhead=data3_masked_downsampled.header # md is short for _masked_downsample
 data3md_dt=data3mdhead.tsamp
 data3md_ns=data3mdhead.nsamples 
 data3md_phases=np.arange(0,data3md_ns) 
-data3md_times0=data3_phases*data3_dt
+data3md_times0=data3md_phases*data3md_dt
 data3md_times=data3_t0+data3_times0 
 data3_downsampled_block=data3_masked_downsampled.read_block(0,data3md_ns)
 data3_masked_downsampled_normalized=data3_downsampled_block.normalise()  # normalize data within each channel
@@ -84,29 +84,44 @@ n_dms=int(DMrange/deltaDM)
 print('n_dms=',n_dms)
 dm_vec=np.linspace(dm_lo,dm_hi,n_dms) # use galactic DM magnitudes, but negative
 dm_t_array=np.zeros((n_dms,data3md_ns)) # dmt_transform-like array, to populate manually
+print('dm_t_array.shape=',dm_t_array.shape)
 
 for i,dm in enumerate(dm_vec): # consider the DM candidates
     dedisp_array = data3_masked_downsampled_normalized.dedisperse(dm) # get 2D array dedispersed by the candidate amount
     dm_t_array[i,:] = dedisp_array.get_tim().data # sum over frequency channels to get the dedispersed data for that time and DM
 
+bestloc=np.unravel_index((np.abs(dm_t_array)).argmax(), dm_t_array.shape)
+print('maximal SNR is',dm_t_array[bestloc])
+print('array of possible start times:',data3md_times0)
+print('bestloc[1]=',bestloc[1])
+print('len(data3md_times0)=',len(data3md_times0))
+print('dm_t_array[bestloc]=',dm_t_array[bestloc])
+best_start_time=data3md_times0[bestloc[1]]
+# best_start_time=data3md_times0[bestloc[0]] # not out of bounds
+print('SNR-maximizing start time is',best_start_time)
+best_dm=dm_vec[bestloc[0]]
+# best_dm=dm_vec[bestloc[1]] # out of bounds
+print('SNR-maximizing DM is',best_dm)
+
 plt.figure(figsize=(10,5))
 plt.imshow(dm_t_array,aspect=1e-1,extent=[data3md_times0[0],data3md_times0[-1],dm_vec[-1],dm_vec[0]]) # extent=[L,R,B,T]
 plt.colorbar()
+plt.scatter(best_start_time,best_dm)
 plt.xlabel('time (s) after '+str(data3_t0iso))
 plt.ylabel('DM (pc cm^{-3})')
 plt.title('DM-time grid for '+str(srubensid))
+plt.savefig('dm_t_array_'+str(srubensid)+'.png',dpi=hires)
 plt.show() # since I only see one maximum, it's not worth searching in Fourier space ... doing a Fourier analysis would merely reveal that the zero-frequency component dominates (possibly with some ring-down)
 
-dm_f_array=np.abs(np.fft.rfft(dm_t_array))
-data3_freqs=np.fft.fftfreq(data3md_ns,d=data3md_dt) # as many frequencies as number of time samples, from a time array with the DOWNSAMPLED spacing
-
-plt.figure(figsize=(10,5))
-plt.imshow(dm_f_array)
-plt.colorbar()
-plt.xlabel('frequency (Hz), referenced to 1/time after time='+str(data3_t0iso))
-plt.ylabel('DM (pc cm^{-3})')
-plt.title('DM-frequency grid for '+str(srubensid))
-plt.show() # expect to see only the zero-freq component b/c we only see one instance of an alien signal...
+# dm_f_array=np.abs(np.fft.rfft(dm_t_array))
+# data3_freqs=np.fft.fftfreq(data3md_ns,d=data3md_dt) # as many frequencies as number of time samples, from a time array with the DOWNSAMPLED spacing
+# plt.figure(figsize=(10,5))
+# plt.imshow(dm_f_array)
+# plt.colorbar()
+# plt.xlabel('frequency (Hz), referenced to 1/time after time='+str(data3_t0iso))
+# plt.ylabel('DM (pc cm^{-3})')
+# plt.title('DM-frequency grid for '+str(srubensid))
+# plt.show() # expect to see only the zero-freq component b/c we only see one instance of an alien signal...
 
 for i,start_time in enumerate(start_times_to_test):
     for j,period in enumerate(periods_to_test):
@@ -115,44 +130,6 @@ for i,start_time in enumerate(start_times_to_test):
 
 
 # ###
-# # 4. search for periodic signal in Fourier space
-# dm_f=np.abs(np.fft.rfft(dm_t.data)) # we don't care about the imag part b/c the rfft of a real-valued array is purely real (no risk of losing info here)
-# downsampled_nsamp=p_masked_downsampled.header.nsamples # number of samples in the downsampled data
-# downsampled_tsamp=p_masked_downsampled.header.tsamp # length of a sample in the downsampled data
-# pfreqs=np.fft.rfftfreq(downsampled_nsamp,d=downsampled_tsamp) # as many frequencies as number of time samples, from a time array with spacing pdt_downsampled
-
-# chan_cutoff=60
-# dm_f_slice=np.abs(dm_f)[:,:chan_cutoff]
-# fundamental_loc=np.unravel_index(dm_f_slice.argmax(), dm_f_slice.shape) # SNR-maximizing indices
-# direct_fundamental_freq=pfreqs[fundamental_loc[1]]
-# direct_fundamental_period=1./direct_fundamental_freq
-
-# bestloc=np.unravel_index((np.abs(dm_f)).argmax(), dm_f.shape)
-# print('maximal SNR is',dm_f[bestloc])
-# best_freq=pfreqs[bestloc[1]]/2. # argmax yields the first harmonic ... divide by two to get the fundamental
-# best_period=1./best_freq
-# print('SNR-maximizing period is',best_period)
-# best_dm=dm_t.dms[bestloc[0]]
-# print('SNR-maximizing DM is',best_dm)
-# ########################################################
-
-# # TRY THE WEIGHTED AVERAGE TO IDENTIFY THE BEST FREQ AND DM
-# abs_dm_f=np.abs(dm_f)
-# columnwise_weights=np.sum(abs_dm_f,axis=1)
-# possible_dms=np.arange(0,2*ctrdm,deltaDM)[:-1]
-# weighted_best_dm=np.average(possible_dms,weights=columnwise_weights)
-# print('WEIGHTED best_dm=',weighted_best_dm)
-
-# plt.figure(figsize=(10,5))
-# plt.imshow(dm_f,extent=[pfreqs[0],pfreqs[-1],2*ctrdm,0],aspect=0.5) #,norm='log',vmax=np.percentile(dm_f,99))
-# cbar=plt.colorbar()
-# cbar.set_label('S/N')
-# plt.xlabel('frequency (Hz), calculated from time (s) after '+pt0iso)
-# plt.ylabel('DM')
-# plt.title('DM-frequency grid')
-# plt.savefig('dm_f_grid.png',dpi=hires)
-# plt.show()
-
 # # 5. fold data to find pulse
 # n_folded_bins=int(best_period//pdt_downsampled)
 # p_folded_3d=p_masked.fold(best_period,weighted_best_dm,nints=1,nbands=1024,nbins=n_folded_bins) # weighted averaging for dm but still the ad hoc /2 in freq to get the fundamental
