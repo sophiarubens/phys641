@@ -2,12 +2,32 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sigpyproc.readers import FilReader
 from astropy.time import Time
+from scipy.optimize import curve_fit
 
-id_of_interest=261215947 # me
-# id_of_interest=260374104 # test w/ a random classmate's data ... formalize this later with a loop over all or something
+# REMEMBER TO UPLOAD THE HELPER FILES TO MYCOURSES
+print('REMEMBER TO UPLOAD THE HELPER FILES TO MYCOURSES')
+
+##### SETUP
+def SNR(Ssignal,N,Ssys):
+    return Ssignal*np.sqrt(N)/Ssys
+
+def fluxdens_pwrlaw(nu,S0,alpha):
+    return S0*nu**alpha
+
+# import the helper files I saved from part 2
+bskmasked=np.load('bskmasked.npy') # masked blank-sky spectrum (1D)
+transfer=np.load('transfer.npy') # transfer function (1D)
+transferred_bskdata=np.load('transferred_bskdata.npy') # blank sky data in physical units (2D)
+
+# read in some alien candidate data
+# id_of_interest=261215947 # me
+id_of_interest=261213158 # test w/ a random classmate's data ... formalize this later with a loop over all or something
 data3=FilReader('data_'+str(id_of_interest)+'.fil')
 _, data3mask=data3.clean_rfi(method='mad',threshold=3.)
 data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
+
+data3_spec_adu=np.mean(data3_masked.data,axis=1)
+data3_spec_jy=data3_spec_adu*transfer
 
 ##### UNDERSTAND THE SINGLE-PULSE NOISE VIA SNR ANALYSIS -> NUMBER OF FOLDS REQUIRED FOR A CERTAIN SNR 
 # spectral_index=-1.4 # mean finding from [doi:10.1093/mnras/stt257]
@@ -29,12 +49,17 @@ data3_freqs=data3_fch1+data3_channels*data3_df # frequency vector is a linear fu
 data3_maskedblock=data3_masked.read_block(0,data3_ns) # data is accessible by reading a block
 data3_filedata=data3_maskedblock.data
 
+[S0_data3,alpha_data3],pcov=curve_fit(fluxdens_pwrlaw,data3_freqs,data3_spec_jy) #,p0=[8.1,-1.5]) # p0 holds priors on spectral index and S0
+S_theo_data3=fluxdens_pwrlaw(S0_data3,alpha_data3)
+SNR1pulse_data3=SNR(S_theo_data3,1,bskmasked)
+print('SNR1pulse_data3=',SNR1pulse_data3)
+
 data3_t0obj=Time(data3_t0,format='mjd')
 data3_t0iso=data3_t0obj.iso
 hires=500
 
 ### RE-CREATE THE TRANSFER FUNCTION
-###
+transfer=np.load('transfer.npy') # I modified my part 2 script to add the single line np.save('transfer.npy',transfer) and then load this file here to access the transfer function without repeating so much redundant code
 
 # plt.figure(figsize=(10,5))
 # plt.plot(data3_times0,data3_filedata)
@@ -93,7 +118,7 @@ print('SNR-maximizing DM is',best_dm)
 plt.figure(figsize=(10,5))
 plt.imshow(dm_t_array,aspect=1e-1,extent=[data3md_times0[0],data3md_times0[-1],dm_vec[-1],dm_vec[0]]) # extent=[L,R,B,T]
 plt.colorbar()
-plt.scatter(best_start_time,best_dm)
+plt.scatter(best_start_time,best_dm,s=1,c='r')
 plt.xlabel('time (s) after '+str(data3_t0iso))
 plt.ylabel('DM (pc cm^{-3})')
 plt.title('DM-time grid for '+str(id_of_interest))
