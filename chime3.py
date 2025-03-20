@@ -2,37 +2,16 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sigpyproc.readers import FilReader
 from astropy.time import Time
-from scipy.optimize import curve_fit
-
-# REMEMBER TO UPLOAD THE HELPER FILES TO MYCOURSES
-print('REMEMBER TO UPLOAD THE HELPER FILES TO MYCOURSES')
 
 ##### SETUP
-def SNR(Ssignal,N,Ssys):
-    return Ssignal*np.sqrt(N)/Ssys
-
-def fluxdens_pwrlaw(nu,S0,alpha):
-    return S0*nu**alpha
-
-# import the helper files I saved from part 2
-bskmasked=np.load('bskmasked.npy') # masked blank-sky spectrum (1D)
-transfer=np.load('transfer.npy') # transfer function (1D)
-transferred_bskdata=np.load('transferred_bskdata.npy') # blank sky data in physical units (2D)
-
 # read in some alien candidate data
-# id_of_interest=261215947 # me
-id_of_interest=261213158 # test w/ a random classmate's data ... formalize this later with a loop over all or something
+id_of_interest=261215947 # me
+# id_of_interest=261213158 # test w/ a random classmate's data ... formalize this later with a loop over all or something
 data3=FilReader('data_'+str(id_of_interest)+'.fil')
 _, data3mask=data3.clean_rfi(method='mad',threshold=3.)
 data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
 
-data3_spec_adu=np.mean(data3_masked.data,axis=1)
-data3_spec_jy=data3_spec_adu*transfer
-
 ##### UNDERSTAND THE SINGLE-PULSE NOISE VIA SNR ANALYSIS -> NUMBER OF FOLDS REQUIRED FOR A CERTAIN SNR 
-# spectral_index=-1.4 # mean finding from [doi:10.1093/mnras/stt257]
-# pulsar indices are never steeper than about -4 [https://doi.org/10.1093/mnras/stx2476], and physical intuition says they should all have nonpositive spectral indices
-# unclear which quantities to use in the SNR RHS,, can't hurt to start with 
 data3head=data3.header
 data3_t0=data3head.tstart # reference/ start time of observations
 data3_dt=data3head.tsamp # time step between observations
@@ -46,13 +25,9 @@ data3_df=data3head.foff # frequency offset of channels
 data3_nsamp=data3head.nsamples # number of samples per channel = number of time steps of observation
 data3_channels=np.arange(0,data3_nchan) # index channel numbers
 data3_freqs=data3_fch1+data3_channels*data3_df # frequency vector is a linear function of the channel number, in MHz
+np.save('data3_freqs_'+str(id_of_interest)+'.npy',data3_freqs) # my Python environments are cooked beyond all recognition (despite going to the debug den and talking to a lot of people and reading a lot of forum posts and creating a lot of new environments and trying to reinstall a lot of packages, I don't have a single environment where I can import sigpyproc, scipy, and astropy) --> I did my power law fit in another script
 data3_maskedblock=data3_masked.read_block(0,data3_ns) # data is accessible by reading a block
 data3_filedata=data3_maskedblock.data
-
-[S0_data3,alpha_data3],pcov=curve_fit(fluxdens_pwrlaw,data3_freqs,data3_spec_jy) #,p0=[8.1,-1.5]) # p0 holds priors on spectral index and S0
-S_theo_data3=fluxdens_pwrlaw(S0_data3,alpha_data3)
-SNR1pulse_data3=SNR(S_theo_data3,1,bskmasked)
-print('SNR1pulse_data3=',SNR1pulse_data3)
 
 data3_t0obj=Time(data3_t0,format='mjd')
 data3_t0iso=data3_t0obj.iso
@@ -113,6 +88,7 @@ bestloc=np.unravel_index((np.abs(dm_t_array)).argmax(), dm_t_array.shape)
 best_start_time=data3md_times0[bestloc[1]]
 print('SNR-maximizing start time is',best_start_time)
 best_dm=dm_vec[bestloc[0]]
+
 print('SNR-maximizing DM is',best_dm)
 
 plt.figure(figsize=(10,5))
@@ -126,7 +102,23 @@ plt.savefig('dm_t_array_'+str(id_of_interest)+'.png',dpi=hires)
 plt.show() # since I only see one maximum, it's not worth searching in Fourier space ... doing a Fourier analysis would merely reveal that the zero-frequency component dominates (possibly with some ring-down)
 
 dedispersed_2d=data3_masked_downsampled_normalized.dedisperse(best_dm)
+
+plt.figure(figsize=(10,5))
+plt.imshow(dedispersed_2d.data,extent=[data3_times0[0],data3_times0[-1],data3_freqs[-1],data3_freqs[0]],aspect=1e-2)
+plt.xlabel('time after '+str(data3_t0iso))
+plt.ylabel('freq (MHz)')
+plt.title('dedispersion check')
+plt.savefig('dedispersion_check.png')
+plt.show()
+
 dedispersed_pulse_profile=dedispersed_2d.get_tim().data
+
+plt.figure()
+plt.plot(data3md_times0,dedispersed_pulse_profile)
+plt.xlabel('freq [MHz]')
+plt.ylabel('intensity [ADU]')
+plt.title('dedispersed pulse profile')
+plt.show()
 
 ##### PULSE WIDTH SEARCH
 width_lo=data3md_dt # can't expect to identify a pulse narrower than the minimum time spacing of samples in the dataset
