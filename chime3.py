@@ -28,6 +28,7 @@ blank_times0=np.arange(0,blank_ns)*blank_dt
 blank_maskedblock=blank.read_block(0,blank_ns) # data is accessible by reading a block
 blank_filedata=blank_maskedblock.data
 blank_pulse_profile=blank_maskedblock.get_tim().data
+blank_masked_downsampled_normalized=blank_maskedblock.normalise()
 
 # read in some alien candidate data
 id_of_interest=261215947 # me
@@ -140,16 +141,23 @@ plt.legend()
 plt.title('reality check for pulse profile')
 plt.show()
 
-##
+##################################################################
+dedispersed_blank_sky=blank_masked_downsampled_normalized.dedisperse(alien_dm)
+blank_pulse_profile=dedispersed_blank_sky.get_tim().data
+##################################################################
+
 alien_template=pulse_template(alien_width,data3_times0) # ,width,times
-zpad=0*alien_template
-zpad_alien_template=np.concatenate((alien_template,zpad))
-zpad_alien_pulse_profile=np.concatenate((alien_pulse_profile,zpad))
-zpad_blank_pulse_profile=np.concatenate((blank_pulse_profile,zpad))
-##
+# ##
+# zpad=0*np.concatenate((alien_template,alien_template,alien_template))
+# zpad_alien_template=np.concatenate((alien_template,zpad))
+# zpad_alien_pulse_profile=np.concatenate((alien_pulse_profile,zpad))
+# zpad_blank_pulse_profile=np.concatenate((blank_pulse_profile,zpad))
+# ##
 
 convolved_data3=np.convolve(alien_template,alien_pulse_profile)
 convolved_blank=np.convolve(alien_template,blank_pulse_profile)
+# convolved_data3=np.convolve(zpad_alien_template,zpad_alien_pulse_profile)
+# convolved_blank=np.convolve(zpad_alien_template,zpad_blank_pulse_profile)
 
 n_hist_bins=75
 data3_hist,data3_bin_edges=np.histogram(convolved_data3,bins=n_hist_bins)
