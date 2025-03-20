@@ -2,8 +2,31 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sigpyproc.readers import FilReader
 from astropy.time import Time
+from numpy.fft import fft,ifft
+
+def pulse_template(centre,width,times):
+    ''' Gaussian template for pulse search (arbitrary amplitude)
+    centre = mu
+    width  = sigma 
+    times  = array of times at which to evaluate the Gaussian template (should be the times for which you have data)
+    '''
+    return np.exp(-(times-centre)**2/(2.*width))
 
 ##### SETUP
+# blank sky setup
+# read in the masked blank sky the same way I filtered it in a previous part of the project
+bsk,    bskheader, bsktimes, bskt0, bskdt, bskns, bsknchan, bskfch1, bskdf, bsknsamp, bskchannels, bskfreqs, bskblock,  bskdata,  bskspec=importfil('blank_sky.fil')
+_, bskmask=bsk.clean_rfi(method='mad',threshold=3.)
+bsk,    bskheader, bsktimes, bskt0, bskdt, bskns, bsknchan, bskfch1, bskdf, bsknsamp, bskchannels, bskfreqs, bskblock,  bskdata,  bskspec=importfil('blank_sky_masked.fil')
+
+bskhead=bsk.header
+bsk_dt=bskhead.tsamp
+bsk_ns=bskhead.nsamples
+bsk_times0=np.arange(0,bsk_ns)*bsk_dt
+bsk_maskedblock=bsk.read_block(0,bsk_ns) # data is accessible by reading a block
+bsk_filedata=bsk_maskedblock.data
+bsk_timeseries=bsk_filedata.get_tim().data
+
 # read in some alien candidate data
 id_of_interest=261215947 # me
 # id_of_interest=261213158 # test w/ a random classmate's data ... formalize this later with a loop over all or something
@@ -76,79 +99,105 @@ dm_hi=0
 DMrange=dm_hi-dm_lo 
 n_dms=int(DMrange/deltaDM)
 print('n_dms=',n_dms)
-dm_vec=np.linspace(dm_lo,dm_hi,n_dms) # use galactic DM magnitudes, but negative
-dm_t_array=np.zeros((n_dms,data3md_ns)) # dmt_transform-like array, to populate manually
-print('dm_t_array.shape=',dm_t_array.shape)
+dm_candidates=np.linspace(dm_lo,dm_hi,n_dms) # use DM magnitudes up to the edge of the galaxy, but negative
+# dm_t_array=np.zeros((n_dms,data3md_ns)) # dmt_transform-like array, to populate manually
+# print('dm_t_array.shape=',dm_t_array.shape)
 
-for i,dm in enumerate(dm_vec): # consider the DM candidates
-    dedisp_array = data3_masked_downsampled_normalized.dedisperse(dm) # get 2D array dedispersed by the candidate amount
-    dm_t_array[i,:] = dedisp_array.get_tim().data # sum over frequency channels to get the dedispersed data for that time and DM
+start_time_candidates=np.arange(0.,10.,data3md_dt) # possible start times
+max_width=1. # cap at 1 s for now ?!
+n_widths= 50
+width_candidates=np.linspace(data3md_dt,max_width,n_widths) # don't expect to see anything narrower than one time sample
 
-bestloc=np.unravel_index((np.abs(dm_t_array)).argmax(), dm_t_array.shape)
-best_start_time=data3md_times0[bestloc[1]]
-print('SNR-maximizing start time is',best_start_time)
-best_dm=dm_vec[bestloc[0]]
+nbins=20
 
-print('SNR-maximizing DM is',best_dm)
+for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
+    dedispersed_data=data3_masked_downsampled_normalized.dedisperse(test_dm) # get 2D array dedispersed by the candidate amount
+    dedispersed_pulse_profile=dedispersed_data.get_tim().data
 
-plt.figure(figsize=(10,5))
-plt.imshow(dm_t_array,aspect=1e-1,extent=[data3md_times0[0],data3md_times0[-1],dm_vec[-1],dm_vec[0]]) # extent=[L,R,B,T]
-plt.colorbar()
-plt.scatter(best_start_time,best_dm,s=1,c='r')
-plt.xlabel('time (s) after '+str(data3_t0iso))
-plt.ylabel('DM (pc cm^{-3})')
-plt.title('DM-time grid for '+str(id_of_interest))
-plt.savefig('dm_t_array_'+str(id_of_interest)+'.png',dpi=hires)
-plt.show() # since I only see one maximum, it's not worth searching in Fourier space ... doing a Fourier analysis would merely reveal that the zero-frequency component dominates (possibly with some ring-down)
+    for j,test_start_time in enumerate(start_time_candidates):
+        for k, test_width in enumerate(width_candidates):
+            current_template=pulse_template(test_start_time,test_width,data3md_times0) # centre,width,times
+            convolved_data3=ifft(fft(current_template)*fft(dedispersed_pulse_profile))
+            convolved_blank=ifft(fft(current_template)*fft(bsk_timeseries))
 
-dedispersed_2d=data3_masked_downsampled_normalized.dedisperse(best_dm)
+            data3_hist,data3_bin_edges=np.histogram(convolved_data3,bins=nbins)
+            blank_hist,blank_bin_edges=np.histogram(convolved_blank,bins=nbins)
 
-plt.figure(figsize=(10,5))
-plt.imshow(dedispersed_2d.data,extent=[data3_times0[0],data3_times0[-1],data3_freqs[-1],data3_freqs[0]],aspect=1e-2)
-plt.xlabel('time after '+str(data3_t0iso))
-plt.ylabel('freq (MHz)')
-plt.title('dedispersion check')
-plt.savefig('dedispersion_check.png')
-plt.show()
+            fig,axs=plt.subplots(1,2)
+            axs[0].plot(data3_bin_edges[:-1],data3_hist)
+            axs[0].set_xlabel('significance')
+            axs[0].set_ylabel('number of instances')
+            axs[0].set_title('data for ID'+str(id_of_interest))
+            axs[1].plot(blank_bin_edges[:-1],blank_hist)            
+            axs[1].set_xlabel('significance')
+            axs[1].set_ylabel('number of instances')
+            axs[1].set_title('blank sky')
+            plt.suptitle('DM = {:-8.3}; start time (s after t0) = {:9.3}; width={:9.3}'.format(test_dm,test_start_time,test_width))
+            plt.tight_layout()
+            plt.savefig('histogram_check.png')
+            plt.show()
 
-dedispersed_pulse_profile=dedispersed_2d.get_tim().data
+            assert(1==0), "check histogram procedure so far"
 
-plt.figure()
-plt.plot(data3md_times0,dedispersed_pulse_profile)
-plt.xlabel('freq [MHz]')
-plt.ylabel('intensity [ADU]')
-plt.title('dedispersed pulse profile')
-plt.show()
+    # dm_t_array[i,:] = dedisp_array.get_tim().data # sum over frequency channels to get the dedispersed data for that time and DM
+
+# bestloc=np.unravel_index((np.abs(dm_t_array)).argmax(), dm_t_array.shape)
+# best_start_time=data3md_times0[bestloc[1]]
+# print('SNR-maximizing start time is',best_start_time)
+# best_dm=dm_vec[bestloc[0]]
+
+# print('SNR-maximizing DM is',best_dm)
+
+# plt.figure(figsize=(10,5))
+# plt.imshow(dm_t_array,aspect=1e-1,extent=[data3md_times0[0],data3md_times0[-1],dm_vec[-1],dm_vec[0]]) # extent=[L,R,B,T]
+# plt.colorbar()
+# plt.scatter(best_start_time,best_dm,s=1,c='r')
+# plt.xlabel('time (s) after '+str(data3_t0iso))
+# plt.ylabel('DM (pc cm^{-3})')
+# plt.title('DM-time grid for '+str(id_of_interest))
+# plt.savefig('dm_t_array_'+str(id_of_interest)+'.png',dpi=hires)
+# plt.show() # since I only see one maximum, it's not worth searching in Fourier space ... doing a Fourier analysis would merely reveal that the zero-frequency component dominates (possibly with some ring-down)
+
+# dedispersed_2d=data3_masked_downsampled_normalized.dedisperse(best_dm)
+
+# plt.figure(figsize=(10,5))
+# plt.imshow(dedispersed_2d.data,extent=[data3_times0[0],data3_times0[-1],data3_freqs[-1],data3_freqs[0]],aspect=1e-2)
+# plt.xlabel('time after '+str(data3_t0iso))
+# plt.ylabel('freq (MHz)')
+# plt.title('dedispersion check')
+# plt.savefig('dedispersion_check.png')
+# plt.show()
+
+# dedispersed_pulse_profile=dedispersed_2d.get_tim().data
+
+# plt.figure()
+# plt.plot(data3md_times0,dedispersed_pulse_profile)
+# plt.xlabel('freq [MHz]')
+# plt.ylabel('intensity [ADU]')
+# plt.title('dedispersed pulse profile')
+# plt.show()
 
 ##### PULSE WIDTH SEARCH
-width_lo=data3md_dt # can't expect to identify a pulse narrower than the minimum time spacing of samples in the dataset
-widths_hi=[1.,0.05]
-width_case_titles=['entire plausible range','inset'] # by inspection of even just the pre-dedispersion waterfall plot, I'd be shocked if the pulse occupied more than 10% of the time samples in the ten-second dataset ... but upon looking more closely, even this is far too conservative a guess, hence the inset
-n_widths_to_test=100
+# width_lo=data3md_dt # can't expect to identify a pulse narrower than the minimum time spacing of samples in the dataset
+# widths_hi=[1.,0.05]
+# width_case_titles=['entire plausible range','inset'] # by inspection of even just the pre-dedispersion waterfall plot, I'd be shocked if the pulse occupied more than 10% of the time samples in the ten-second dataset ... but upon looking more closely, even this is far too conservative a guess, hence the inset
+# n_widths_to_test=100
 
-def pulse_template(centre,width,times):
-    ''' Gaussian template for pulse search (arbitrary amplitude)
-    centre = mu
-    width  = sigma 
-    times  = array of times at which to evaluate the Gaussian template (should be the times for which you have data)
-    '''
-    return np.exp(-(times-centre)**2/(2.*width))
+# correlations_varying_width=np.zeros(n_widths_to_test)
+# fig,axs=plt.subplots(1,2,figsize=(8,6))
+# for i,width_hi in enumerate(widths_hi):
+#     widths_to_test=np.linspace(width_lo,width_hi,n_widths_to_test)
+#     for j,test_width in enumerate(widths_to_test):
+#         template_current_width=pulse_template(test_start_time,test_width,data3md_times0)
+#         correlations_varying_width[j]=np.linalg.norm(np.correlate(dedispersed_pulse_profile,template_current_width))
 
-correlations_varying_width=np.zeros(n_widths_to_test)
-fig,axs=plt.subplots(1,2,figsize=(8,6))
-for i,width_hi in enumerate(widths_hi):
-    widths_to_test=np.linspace(width_lo,width_hi,n_widths_to_test)
-    for j,test_width in enumerate(widths_to_test):
-        template_current_width=pulse_template(best_start_time,test_width,data3md_times0)
-        correlations_varying_width[j]=np.linalg.norm(np.correlate(dedispersed_pulse_profile,template_current_width))
-
-    axs[i].plot(widths_to_test,correlations_varying_width)
-    axs[i].set_xlabel('pulse width (s)')
-    axs[i].set_ylabel('timeseries norm of correlation amplitude [dimensionless]')
-    axs[i].set_title(width_case_titles[i])
-best_pulse_width=widths_to_test[np.argmax(correlations_varying_width)]
-axs[1].axvline(best_pulse_width,c='r')
-plt.suptitle('pulse profile template-data correlation')
-plt.tight_layout()
-plt.savefig('pulse_width_identification.png')
-plt.show()
+#     axs[i].plot(widths_to_test,correlations_varying_width)
+#     axs[i].set_xlabel('pulse width (s)')
+#     axs[i].set_ylabel('timeseries norm of correlation amplitude [dimensionless]')
+#     axs[i].set_title(width_case_titles[i])
+# best_pulse_width=widths_to_test[np.argmax(correlations_varying_width)]
+# axs[1].axvline(best_pulse_width,c='r')
+# plt.suptitle('pulse profile template-data correlation')
+# plt.tight_layout()
+# plt.savefig('pulse_width_identification.png')
+# plt.show()
