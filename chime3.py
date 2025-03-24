@@ -103,7 +103,7 @@ start_index_array=np.zeros((n_dms,n_widths)) # stored values = indices of start 
 # data3_corr_grid=np.zeros((n_dms,n_widths,2*data3_ns-1))
 # blank_corr_grid=np.zeros((n_dms,n_widths,2*data3_ns-1))
 mean_blank_corr=np.zeros((n_dms,n_widths))
-detections=[]
+SNR_grid=np.zeros((n_dms,n_widths))
 SNRthreshold=10
 
 ##### SEARCH THE DM-WIDTH PARAMETER SPACE
@@ -119,14 +119,16 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
         convolved_data3=np.convolve(current_template,dedispersed_pulse_profile)
         maxidx=np.argmax(convolved_data3)
         data3_mean=np.mean(convolved_data3)
+        data3_max=np.max(convolved_data3)
         # data3_std=np.std(convolved_data3)
         convolved_blank=np.convolve(current_template,dedispersed_blank_profile)
         blank_mean=np.mean(convolved_blank)
         blank_max=np.max(convolved_blank)
-        if (convolved_data3[maxidx]>blank_max): # check if candidate
-            SNR=
+        if (data3_max>blank_max): # check if candidate
+            SNR=data3_max/blank_max
             if (SNR>SNRthreshold):
-                detections.append([test_dm,test_width,maxidx])
+                SNR_grid[i,j]=SNR
+                # detections.append([test_dm,test_width,SNR,maxidx])
         # blank_std=np.std(convolved_blank)
 
         # data3_corr_grid[i,j,:]=(convolved_data3-data3_mean)/data3_std # normalize for each candidate width
@@ -139,26 +141,21 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
         mean_blank_corr[i,j]=blank_mean
 
 # Kim SNR current as of 13:15 Monday: corr/noise mean
-detections=np.asarray(detections)
+# detections=np.asarray(detections)
 
 ##### VISUALIZE LOOP DATA PRODUCTS
 loop_aspect=2e-3
-fig,axs=plt.subplots(1,3,figsize=(15,5))
+fig,axs=plt.subplots(1,2,figsize=(15,5))
 im=axs[0].imshow(start_index_array,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]]) # # extent=[left,right,bottom,top]
 plt.colorbar(im,ax=axs[0])
 axs[0].set_xlabel('width')
 axs[0].set_ylabel('DM')
 axs[0].set_title('start index')
-im=axs[1].imshow(max_data3_corr,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
+im=axs[1].imshow(SNR_grid,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
 plt.colorbar(im,ax=axs[1])
 axs[1].set_xlabel('width')
 axs[1].set_ylabel('DM')
-axs[1].set_title('signal')
-im=axs[2].imshow(SNR,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
-plt.colorbar(im,ax=axs[2])
-axs[2].set_xlabel('width')
-axs[2].set_ylabel('DM')
-axs[2].set_title('SNR')
+axs[1].set_title('SNR')
 plt.tight_layout()
 plt.show()
 
