@@ -88,7 +88,7 @@ n_dms=int(DMrange/deltaDM)
 dm_candidates=np.linspace(dm_lo,dm_hi,n_dms) # use DM magnitudes up to the edge of the galaxy, but negative
 
 max_width=0.1 # cap at 1 s for now
-coarse_width_search=False
+coarse_width_search=True
 if coarse_width_search: # hard-coded smaller parameter set to speed the search
     n_widths= 25
     width_candidates=np.linspace(data3_non_downsampled_dt,max_width,n_widths) 
@@ -97,62 +97,73 @@ else: # more compute time but more accurate to the limits of the survey
     n_widths=len(width_candidates)
     print('n_widths=',n_widths)
 
-dm_width_array=np.zeros((n_dms,n_widths)) # max value for best-fit DM and width
+max_data3_corr=np.zeros((n_dms,n_widths)) # max value for best-fit DM and width
+max_blank_corr=np.zeros((n_dms,n_widths))
 start_index_array=np.zeros((n_dms,n_widths)) # stored values = indices of start time where the correlation is strongest
-# snr_array=np.zeros((n_dms,n_widths))
+# data3_corr_grid=np.zeros((n_dms,n_widths,2*data3_ns-1))
+# blank_corr_grid=np.zeros((n_dms,n_widths,2*data3_ns-1))
+mean_blank_corr=np.zeros((n_dms,n_widths))
+detections=[]
+SNRthreshold=10
 
 ##### SEARCH THE DM-WIDTH PARAMETER SPACE
 n_hist_bins=75
 for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
     dedispersed_data=data3_masked_downsampled_normalized.dedisperse(test_dm) # get 2D array dedispersed by the candidate amount
     dedispersed_pulse_profile=dedispersed_data.get_tim().data
-    # dedispersed_blank=blank_masked_downsampled_normalized.dedisperse(test_dm)
-    # dedispersed_blank_profile=dedispersed_blank.get_tim().data
+    dedispersed_blank=blank_masked_downsampled_normalized.dedisperse(test_dm)
+    dedispersed_blank_profile=dedispersed_blank.get_tim().data
 
     for j, test_width in enumerate(width_candidates): # consider the width candidates
         current_template=pulse_template(test_width,data3_times0) # width,times
         convolved_data3=np.convolve(current_template,dedispersed_pulse_profile)
-        # ##
-        # convolved_blank=np.convolve(current_template,dedispersed_blank_profile)
-        # data3_hist,data3_bin_edges=np.histogram(convolved_data3,bins=n_hist_bins)
-        # data3_hist_mean=data3_hist@data3_bin_edges[:-1]/np.sum(data3_hist)
-        # blank_hist,blank_bin_edges=np.histogram(convolved_blank,bins=n_hist_bins)
-        # blank_hist_mean=blank_hist@blank_bin_edges[:-1]/np.sum(blank_hist)
-        # ##
-
         maxidx=np.argmax(convolved_data3)
+        data3_mean=np.mean(convolved_data3)
+        # data3_std=np.std(convolved_data3)
+        convolved_blank=np.convolve(current_template,dedispersed_blank_profile)
+        blank_mean=np.mean(convolved_blank)
+        blank_max=np.max(convolved_blank)
+        if (convolved_data3[maxidx]>blank_max): # check if candidate
+            SNR=
+            if (SNR>SNRthreshold):
+                detections.append([test_dm,test_width,maxidx])
+        # blank_std=np.std(convolved_blank)
+
+        # data3_corr_grid[i,j,:]=(convolved_data3-data3_mean)/data3_std # normalize for each candidate width
+        # blank_corr_grid[i,j,:]=(convolved_blank-blank_mean)/blank_std
+
         start_index_array[i,j]=maxidx
-        dm_width_array[i,j]=convolved_data3[maxidx]
-        # snr_array[i,j]=data3_hist_mean/blank_hist_mean
+        max_data3_corr[i,j]=convolved_data3[maxidx]
+        max_blank_corr[i,j]=convolved_blank[maxidx]
+
+        mean_blank_corr[i,j]=blank_mean
+
+# Kim SNR current as of 13:15 Monday: corr/noise mean
+detections=np.asarray(detections)
 
 ##### VISUALIZE LOOP DATA PRODUCTS
 loop_aspect=2e-3
-fig,axs=plt.subplots(1,2,figsize=(20,5))
+fig,axs=plt.subplots(1,3,figsize=(15,5))
 im=axs[0].imshow(start_index_array,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]]) # # extent=[left,right,bottom,top]
 plt.colorbar(im,ax=axs[0])
 axs[0].set_xlabel('width')
 axs[0].set_ylabel('DM')
 axs[0].set_title('start index')
-im=axs[1].imshow(dm_width_array,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
+im=axs[1].imshow(max_data3_corr,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
 plt.colorbar(im,ax=axs[1])
 axs[1].set_xlabel('width')
 axs[1].set_ylabel('DM')
 axs[1].set_title('signal')
-# im=axs[2].imshow(,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
-# plt.colorbar(im,ax=axs[2])
-# axs[3].set_xlabel('width')
-# axs[3].set_ylabel('DM')
-# axs[3].set_title('noise')
-# im=axs[3].imshow(snr_array,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
-# plt.colorbar(im,ax=axs[3])
-# axs[3].set_xlabel('width')
-# axs[3].set_ylabel('DM')
-# axs[3].set_title('SNR')
+im=axs[2].imshow(SNR,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
+plt.colorbar(im,ax=axs[2])
+axs[2].set_xlabel('width')
+axs[2].set_ylabel('DM')
+axs[2].set_title('SNR')
 plt.tight_layout()
 plt.show()
 
 ##### RESULTING PULSE
-alien_dm_idx,alien_width_idx=np.unravel_index((np.abs(dm_width_array)).argmax(), dm_width_array.shape)
+alien_dm_idx,alien_width_idx=np.unravel_index((np.abs(max_data3_corr)).argmax(), max_data3_corr.shape)
 alien_dm=dm_candidates[alien_dm_idx]
 alien_width=width_candidates[alien_width_idx]
 alien_start_time_idx=int(start_index_array[alien_dm_idx,alien_width_idx]) # FIGURE OUT OFFSET
