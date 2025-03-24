@@ -87,7 +87,8 @@ deltaDM=data3_dt/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
 dm_lo=-100
 dm_hi=0
 DMrange=dm_hi-dm_lo 
-n_dms=int(DMrange/deltaDM)
+# n_dms=int(DMrange/deltaDM)
+n_dms=100
 dm_candidates=np.linspace(dm_lo,dm_hi,n_dms) # use DM magnitudes up to the edge of the galaxy, but negative
 
 max_width=0.1 # cap at 1 s for now
@@ -95,6 +96,7 @@ coarse_width_search=True
 if coarse_width_search: # hard-coded smaller parameter set to speed the search
     n_widths= 25
     width_candidates=np.linspace(data3_non_downsampled_dt,max_width,n_widths) 
+    print('delta_width=',width_candidates[1]-width_candidates[0])
 else: # more compute time but more accurate to the limits of the survey
     width_candidates=np.arange(data3_non_downsampled_dt,max_width,data3_non_downsampled_dt)
     n_widths=len(width_candidates)
@@ -115,11 +117,9 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
     for j, test_width in enumerate(width_candidates): # consider the width candidates
         current_template=pulse_template(test_width,data3_times0) # width,times
         convolved_data3=np.convolve(current_template,dedispersed_pulse_profile)
-        # convolved_data3=np.correlate(current_template,dedispersed_pulse_profile,mode='full')
         maxidx=np.argmax(convolved_data3)
         data3_max=np.max(convolved_data3)
         convolved_blank=np.convolve(current_template,dedispersed_blank_profile)
-        # convolved_blank=np.correlate(current_template,dedispersed_blank_profile,mode='full')
         blank_max=np.max(convolved_blank)
         if (data3_max>blank_max): # check if candidate
             SNR=data3_max/blank_max
@@ -127,8 +127,6 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
                 SNR_grid[i,j]=SNR
 
         start_index_array[i,j]=maxidx
-        # max_data3_corr[i,j]=data3_max
-SNR_grid[SNR_grid==0]=np.nan
 
 ##### VISUALIZE LOOP DATA PRODUCTS
 loop_aspect=2e-3
@@ -147,10 +145,11 @@ plt.tight_layout()
 plt.show()
 
 ##### RESULTING PULSE
-alien_dm_idx,alien_width_idx=np.unravel_index(SNR_grid).argmax(), SNR_grid.shape)
+alien_dm_idx,alien_width_idx=np.unravel_index((SNR_grid).argmax(), SNR_grid.shape) # width idx is too small by one
+SNR_grid[SNR_grid==0]=np.nan
 alien_dm=dm_candidates[alien_dm_idx]
 alien_width=width_candidates[alien_width_idx]
-alien_start_time_idx=int(start_index_array[alien_dm_idx,alien_width_idx]) # FIGURE OUT OFFSET
+alien_start_time_idx=int(start_index_array[alien_dm_idx,alien_width_idx]-1) # offset to account for the 2*N-1 happening in the convolution
 alien_start_time=data3_times0[alien_start_time_idx]
 print('alien signal properties:')
 print('start time=',alien_start_time)
