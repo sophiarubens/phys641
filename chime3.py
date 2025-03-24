@@ -3,13 +3,14 @@ from matplotlib import pyplot as plt
 from sigpyproc.readers import FilReader
 from astropy.time import Time
 
-def pulse_template(width,times,centre=0):
+def pulse_template(width,times, centre=0):
     ''' Gaussian template for pulse search (arbitrary amplitude)
     centre = mu
     width  = sigma 
     times  = array of times at which to evaluate the Gaussian template (should be the times for which you have data)
     '''
-    return np.exp(-(times-centre)**2/(2.*width))
+    centre=times/2
+    return np.exp(-(times-centre)**2/(2.*width**2))
 
 ##### SETUP
 tfac=16 # use slightly less downsampling than in the example ... sacrifice a bit of evaluation speed for more finely sampled results
@@ -33,20 +34,22 @@ blank_masked_downsampled_normalized=blank_maskedblock.normalise()
 id_of_interest=261215947 # me
 # id_of_interest=261209827 # Kim
 # id_of_interest=261215346 # Zach
-# id_of_interest=0 # placeholder (want to leave my code the same-ish when inspecting the injection)
-data3=FilReader('data_'+str(id_of_interest)+'.fil')
-# data3=FilReader('data_w_injected_sig.fil')
+id_of_interest=0 # placeholder (want to leave my code the same-ish when inspecting the injection)
+# data3=FilReader('data_'+str(id_of_interest)+'.fil')
+data3=FilReader('data_w_injected_sig.fil')
 _, data3mask=data3.clean_rfi(method='mad',threshold=3.)
-data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
-# data3_masked=FilReader('data_w_injected_sig_masked.fil')
+# data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
+data3_masked=FilReader('data_w_injected_sig_masked.fil')
 data3_non_downsampled_dt=data3_masked.header.tsamp
+print('data3_non_downsampled_dt=',data3_non_downsampled_dt)
 
 data3_masked.downsample(tfactor=tfac) # downsample by a factor of tfactor
-data3_masked_downsampled=FilReader('data_'+str(id_of_interest)+'_masked_f1_t'+str(tfac)+'.fil')
-# data3_masked_downsampled=FilReader('data_w_injected_sig_masked_f1_t'+str(tfac)+'.fil')
+# data3_masked_downsampled=FilReader('data_'+str(id_of_interest)+'_masked_f1_t'+str(tfac)+'.fil')
+data3_masked_downsampled=FilReader('data_w_injected_sig_masked_f1_t'+str(tfac)+'.fil')
 data3head=data3_masked_downsampled.header
 data3_t0=data3head.tstart
 data3_dt=data3head.tsamp
+print('data3_dt=',data3_dt)
 data3_ns=data3head.nsamples 
 data3_phases=np.arange(0,data3_ns) 
 data3_times0=data3_phases*data3_dt
@@ -80,8 +83,8 @@ plt.show()
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
 deltaDM=data3_dt/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
-dm_lo=-50
-# dm_lo=-100
+# dm_lo=-50
+dm_lo=-100
 dm_hi=0
 DMrange=dm_hi-dm_lo 
 n_dms=int(DMrange/deltaDM)
@@ -97,12 +100,9 @@ else: # more compute time but more accurate to the limits of the survey
     n_widths=len(width_candidates)
     print('n_widths=',n_widths)
 
-max_data3_corr=np.zeros((n_dms,n_widths)) # max value for best-fit DM and width
-# max_blank_corr=np.zeros((n_dms,n_widths))
 start_index_array=np.zeros((n_dms,n_widths)) # stored values = indices of start time where the correlation is strongest
-# mean_blank_corr=np.zeros((n_dms,n_widths))
 SNR_grid=np.zeros((n_dms,n_widths))
-SNRthreshold=5
+SNRthreshold=3
 
 ##### SEARCH THE DM-WIDTH PARAMETER SPACE
 n_hist_bins=75
@@ -115,9 +115,11 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
     for j, test_width in enumerate(width_candidates): # consider the width candidates
         current_template=pulse_template(test_width,data3_times0) # width,times
         convolved_data3=np.convolve(current_template,dedispersed_pulse_profile)
+        # convolved_data3=np.correlate(current_template,dedispersed_pulse_profile,mode='full')
         maxidx=np.argmax(convolved_data3)
         data3_max=np.max(convolved_data3)
         convolved_blank=np.convolve(current_template,dedispersed_blank_profile)
+        # convolved_blank=np.correlate(current_template,dedispersed_blank_profile,mode='full')
         blank_max=np.max(convolved_blank)
         if (data3_max>blank_max): # check if candidate
             SNR=data3_max/blank_max
@@ -125,8 +127,8 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
                 SNR_grid[i,j]=SNR
 
         start_index_array[i,j]=maxidx
-        max_data3_corr[i,j]=data3_max
-SNR[np.nonzero(SNR==0)]=np.nan
+        # max_data3_corr[i,j]=data3_max
+SNR_grid[SNR_grid==0]=np.nan
 
 ##### VISUALIZE LOOP DATA PRODUCTS
 loop_aspect=2e-3
@@ -145,7 +147,7 @@ plt.tight_layout()
 plt.show()
 
 ##### RESULTING PULSE
-alien_dm_idx,alien_width_idx=np.unravel_index((np.abs(max_data3_corr)).argmax(), max_data3_corr.shape)
+alien_dm_idx,alien_width_idx=np.unravel_index(SNR_grid).argmax(), SNR_grid.shape)
 alien_dm=dm_candidates[alien_dm_idx]
 alien_width=width_candidates[alien_width_idx]
 alien_start_time_idx=int(start_index_array[alien_dm_idx,alien_width_idx]) # FIGURE OUT OFFSET
@@ -165,37 +167,3 @@ plt.ylabel('intensity')
 plt.legend()
 plt.title('reality check for pulse profile')
 plt.show()
-
-##### HISTOGRRAM ANALYSIS
-# dedispersed_blank_sky=blank_masked_downsampled_normalized.dedisperse(alien_dm)
-# blank_pulse_profile=dedispersed_blank_sky.get_tim().data
-
-# alien_template=pulse_template(alien_width,data3_times0) # width,times
-
-# convolved_data3=np.convolve(alien_template,alien_pulse_profile)
-# convolved_blank=np.convolve(alien_template,blank_pulse_profile)
-
-# data3_hist,data3_bin_edges=np.histogram(convolved_data3,bins=n_hist_bins)
-# data3_hist_mean=data3_hist@data3_bin_edges[:-1]/np.sum(data3_hist)
-# blank_hist,blank_bin_edges=np.histogram(convolved_blank,bins=n_hist_bins)
-# blank_hist_mean=blank_hist@blank_bin_edges[:-1]/np.sum(blank_hist)
-
-# fig,axs=plt.subplots(2,1,figsize=(5,10),sharex=True)
-# axs[0].stairs(data3_hist,data3_bin_edges,label='histogram',fill=True)
-# axs[0].axvline(data3_hist_mean,linestyle='--',c='C1',label='mean')
-# axs[0].set_yscale('log')
-# axs[0].set_xlabel('significance')
-# axs[0].set_ylabel('number of instances')
-# axs[0].set_title('data for ID'+str(id_of_interest))
-# axs[0].legend()
-# axs[1].stairs(blank_hist,blank_bin_edges,label='histogram',fill=True)  
-# axs[1].axvline(blank_hist_mean,linestyle='--',c='C1',label='mean')  
-# axs[1].set_yscale('log')        
-# axs[1].set_xlabel('significance')
-# axs[1].set_ylabel('number of instances')
-# axs[1].set_title('blank sky')
-# axs[1].legend()
-# plt.suptitle('DM = {:-5.3}; start time (s after t0) = {:4.3}; width={:8.3}'.format(alien_dm,alien_start_time,alien_width))
-# plt.tight_layout()
-# plt.savefig('histogram_dm_'+str(test_dm)+'_t_'+str(alien_start_time)+'_w_'+str(test_width)+'.png')
-# plt.show()
