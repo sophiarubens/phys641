@@ -98,13 +98,11 @@ else: # more compute time but more accurate to the limits of the survey
     print('n_widths=',n_widths)
 
 max_data3_corr=np.zeros((n_dms,n_widths)) # max value for best-fit DM and width
-max_blank_corr=np.zeros((n_dms,n_widths))
+# max_blank_corr=np.zeros((n_dms,n_widths))
 start_index_array=np.zeros((n_dms,n_widths)) # stored values = indices of start time where the correlation is strongest
-# data3_corr_grid=np.zeros((n_dms,n_widths,2*data3_ns-1))
-# blank_corr_grid=np.zeros((n_dms,n_widths,2*data3_ns-1))
-mean_blank_corr=np.zeros((n_dms,n_widths))
+# mean_blank_corr=np.zeros((n_dms,n_widths))
 SNR_grid=np.zeros((n_dms,n_widths))
-SNRthreshold=10
+SNRthreshold=5
 
 ##### SEARCH THE DM-WIDTH PARAMETER SPACE
 n_hist_bins=75
@@ -118,30 +116,17 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
         current_template=pulse_template(test_width,data3_times0) # width,times
         convolved_data3=np.convolve(current_template,dedispersed_pulse_profile)
         maxidx=np.argmax(convolved_data3)
-        data3_mean=np.mean(convolved_data3)
         data3_max=np.max(convolved_data3)
-        # data3_std=np.std(convolved_data3)
         convolved_blank=np.convolve(current_template,dedispersed_blank_profile)
-        blank_mean=np.mean(convolved_blank)
         blank_max=np.max(convolved_blank)
         if (data3_max>blank_max): # check if candidate
             SNR=data3_max/blank_max
             if (SNR>SNRthreshold):
                 SNR_grid[i,j]=SNR
-                # detections.append([test_dm,test_width,SNR,maxidx])
-        # blank_std=np.std(convolved_blank)
-
-        # data3_corr_grid[i,j,:]=(convolved_data3-data3_mean)/data3_std # normalize for each candidate width
-        # blank_corr_grid[i,j,:]=(convolved_blank-blank_mean)/blank_std
 
         start_index_array[i,j]=maxidx
-        max_data3_corr[i,j]=convolved_data3[maxidx]
-        max_blank_corr[i,j]=convolved_blank[maxidx]
-
-        mean_blank_corr[i,j]=blank_mean
-
-# Kim SNR current as of 13:15 Monday: corr/noise mean
-# detections=np.asarray(detections)
+        max_data3_corr[i,j]=data3_max
+SNR[np.nonzero(SNR==0)]=np.nan
 
 ##### VISUALIZE LOOP DATA PRODUCTS
 loop_aspect=2e-3
@@ -182,37 +167,35 @@ plt.title('reality check for pulse profile')
 plt.show()
 
 ##### HISTOGRRAM ANALYSIS
-dedispersed_blank_sky=blank_masked_downsampled_normalized.dedisperse(alien_dm)
-blank_pulse_profile=dedispersed_blank_sky.get_tim().data
+# dedispersed_blank_sky=blank_masked_downsampled_normalized.dedisperse(alien_dm)
+# blank_pulse_profile=dedispersed_blank_sky.get_tim().data
 
-alien_template=pulse_template(alien_width,data3_times0) # width,times
+# alien_template=pulse_template(alien_width,data3_times0) # width,times
 
-convolved_data3=np.convolve(alien_template,alien_pulse_profile)
-convolved_blank=np.convolve(alien_template,blank_pulse_profile)
+# convolved_data3=np.convolve(alien_template,alien_pulse_profile)
+# convolved_blank=np.convolve(alien_template,blank_pulse_profile)
 
-data3_hist,data3_bin_edges=np.histogram(convolved_data3,bins=n_hist_bins)
-data3_hist_mean=data3_hist@data3_bin_edges[:-1]/np.sum(data3_hist)
-blank_hist,blank_bin_edges=np.histogram(convolved_blank,bins=n_hist_bins)
-blank_hist_mean=blank_hist@blank_bin_edges[:-1]/np.sum(blank_hist)
+# data3_hist,data3_bin_edges=np.histogram(convolved_data3,bins=n_hist_bins)
+# data3_hist_mean=data3_hist@data3_bin_edges[:-1]/np.sum(data3_hist)
+# blank_hist,blank_bin_edges=np.histogram(convolved_blank,bins=n_hist_bins)
+# blank_hist_mean=blank_hist@blank_bin_edges[:-1]/np.sum(blank_hist)
 
-fig,axs=plt.subplots(2,1,figsize=(5,10),sharex=True)
-axs[0].stairs(data3_hist,data3_bin_edges,label='histogram',fill=True)
-axs[0].axvline(data3_hist_mean,linestyle='--',c='C1',label='mean')
-axs[0].set_yscale('log')
-axs[0].set_xlabel('significance')
-axs[0].set_ylabel('number of instances')
-axs[0].set_title('data for ID'+str(id_of_interest))
-axs[0].legend()
-axs[1].stairs(blank_hist,blank_bin_edges,label='histogram',fill=True)  
-axs[1].axvline(blank_hist_mean,linestyle='--',c='C1',label='mean')  
-axs[1].set_yscale('log')        
-axs[1].set_xlabel('significance')
-axs[1].set_ylabel('number of instances')
-axs[1].set_title('blank sky')
-axs[1].legend()
-plt.suptitle('DM = {:-5.3}; start time (s after t0) = {:4.3}; width={:8.3}'.format(alien_dm,alien_start_time,alien_width))
-plt.tight_layout()
-plt.savefig('histogram_dm_'+str(test_dm)+'_t_'+str(alien_start_time)+'_w_'+str(test_width)+'.png')
-plt.show()
-
-##### BE MORE FORMAL ABOUT THE CONFIDENCE INTERVALS
+# fig,axs=plt.subplots(2,1,figsize=(5,10),sharex=True)
+# axs[0].stairs(data3_hist,data3_bin_edges,label='histogram',fill=True)
+# axs[0].axvline(data3_hist_mean,linestyle='--',c='C1',label='mean')
+# axs[0].set_yscale('log')
+# axs[0].set_xlabel('significance')
+# axs[0].set_ylabel('number of instances')
+# axs[0].set_title('data for ID'+str(id_of_interest))
+# axs[0].legend()
+# axs[1].stairs(blank_hist,blank_bin_edges,label='histogram',fill=True)  
+# axs[1].axvline(blank_hist_mean,linestyle='--',c='C1',label='mean')  
+# axs[1].set_yscale('log')        
+# axs[1].set_xlabel('significance')
+# axs[1].set_ylabel('number of instances')
+# axs[1].set_title('blank sky')
+# axs[1].legend()
+# plt.suptitle('DM = {:-5.3}; start time (s after t0) = {:4.3}; width={:8.3}'.format(alien_dm,alien_start_time,alien_width))
+# plt.tight_layout()
+# plt.savefig('histogram_dm_'+str(test_dm)+'_t_'+str(alien_start_time)+'_w_'+str(test_width)+'.png')
+# plt.show()
