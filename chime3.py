@@ -35,17 +35,18 @@ id_of_interest=261215947 # me
 # id_of_interest=261209827 # Kim
 # id_of_interest=261215346 # Zach
 id_of_interest=0 # placeholder (want to leave my code the same-ish when inspecting the injection)
+non_personalized_test_file='data_w_injected_sig' # 'blank_sky' # other test
 # data3=FilReader('data_'+str(id_of_interest)+'.fil')
-data3=FilReader('data_w_injected_sig.fil')
+data3=FilReader(non_personalized_test_file+'.fil')
 _, data3mask=data3.clean_rfi(method='mad',threshold=3.)
 # data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
-data3_masked=FilReader('data_w_injected_sig_masked.fil')
+data3_masked=FilReader(non_personalized_test_file+'_masked.fil')
 data3_non_downsampled_dt=data3_masked.header.tsamp
 print('data3_non_downsampled_dt=',data3_non_downsampled_dt)
 
 data3_masked.downsample(tfactor=tfac) # downsample by a factor of tfactor
 # data3_masked_downsampled=FilReader('data_'+str(id_of_interest)+'_masked_f1_t'+str(tfac)+'.fil')
-data3_masked_downsampled=FilReader('data_w_injected_sig_masked_f1_t'+str(tfac)+'.fil')
+data3_masked_downsampled=FilReader(non_personalized_test_file+'_masked_f1_t'+str(tfac)+'.fil')
 data3head=data3_masked_downsampled.header
 data3_t0=data3head.tstart
 data3_dt=data3head.tsamp
@@ -83,7 +84,7 @@ plt.show()
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
 deltaDM=data3_dt/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
-# dm_lo=-50
+# dm_lo=-60
 dm_lo=-100
 dm_hi=0
 DMrange=dm_hi-dm_lo 
@@ -123,10 +124,12 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
         blank_max=np.max(convolved_blank)
         if (data3_max>blank_max): # check if candidate
             SNR=data3_max/blank_max
-            if (SNR>SNRthreshold):
+            if (SNR>SNRthreshold): # is the SNR above the threshold?
                 SNR_grid[i,j]=SNR
 
         start_index_array[i,j]=maxidx
+alien_dm_idx,alien_width_idx=np.unravel_index((SNR_grid).argmax(), SNR_grid.shape) # width idx is too small by one
+SNR_grid[SNR_grid==0]=np.nan
 
 ##### VISUALIZE LOOP DATA PRODUCTS
 loop_aspect=2e-3
@@ -145,8 +148,6 @@ plt.tight_layout()
 plt.show()
 
 ##### RESULTING PULSE
-alien_dm_idx,alien_width_idx=np.unravel_index((SNR_grid).argmax(), SNR_grid.shape) # width idx is too small by one
-SNR_grid[SNR_grid==0]=np.nan
 alien_dm=dm_candidates[alien_dm_idx]
 alien_width=width_candidates[alien_width_idx]
 alien_start_time_idx=int(start_index_array[alien_dm_idx,alien_width_idx]-1) # offset to account for the 2*N-1 happening in the convolution
@@ -162,7 +163,21 @@ plt.figure()
 plt.plot(data3_times0,alien_pulse_profile,label='final dedispersed pulse profile')
 plt.plot(data3_times0,np.max(alien_pulse_profile)*np.exp(-(data3_times0-alien_start_time)**2/(2*alien_width**2)),label='alien template')
 plt.xlabel('time')
-plt.ylabel('intensity')
+plt.ylabel('intensity (ADU)')
 plt.legend()
 plt.title('reality check for pulse profile')
 plt.show()
+
+# def multiply_columnwise(A,b):
+#     '''for each column in matrix A, multiply elementwise by vector b'''
+#     # assert(A.shape[0]==b.shape[0]), "A must have the same number of elements per column (i.e. rows) as b has entries"
+#     return (A.T*b).T
+
+# plt.figure()
+# transferred_final_dedispersed_data=multiply_columnwise(final_dedispersed_data.data,transfer)
+# print('transferred_final_dedispersed_data=',transferred_final_dedispersed_data)
+# plt.plot(data3_times0,) # columnwise multiplication: (A.T*b).T
+# plt.xlabel('time')
+# plt.ylabel('brightness (Jy)')
+# plt.title('Alien pulse profile in physical units')
+# plt.show()
