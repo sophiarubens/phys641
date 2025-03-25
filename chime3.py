@@ -34,20 +34,20 @@ blank_masked_downsampled_normalized=blank_maskedblock.normalise()
 id_of_interest=261215947 # me
 # id_of_interest=261209827 # Kim
 # id_of_interest=261215346 # Zach
-id_of_interest=0 # placeholder (want to leave my code the same-ish when inspecting the injection)
+# id_of_interest=0 # placeholder (want to leave my code the same-ish when inspecting the injection)
 # non_personalized_test_file='data_w_injected_sig'
 non_personalized_test_file='blank_sky'
-# data3=FilReader('data_'+str(id_of_interest)+'.fil')
-data3=FilReader(non_personalized_test_file+'.fil')
+data3=FilReader('data_'+str(id_of_interest)+'.fil')
+# data3=FilReader(non_personalized_test_file+'.fil')
 _, data3mask=data3.clean_rfi(method='mad',threshold=3.)
-# data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
-data3_masked=FilReader(non_personalized_test_file+'_masked.fil')
+data3_masked=FilReader('data_'+str(id_of_interest)+'_masked.fil') # use the RFI-flagged version of the data
+# data3_masked=FilReader(non_personalized_test_file+'_masked.fil')
 data3_non_downsampled_dt=data3_masked.header.tsamp
 print('data3_non_downsampled_dt=',data3_non_downsampled_dt)
 
 data3_masked.downsample(tfactor=tfac) # downsample by a factor of tfactor
-# data3_masked_downsampled=FilReader('data_'+str(id_of_interest)+'_masked_f1_t'+str(tfac)+'.fil')
-data3_masked_downsampled=FilReader(non_personalized_test_file+'_masked_f1_t'+str(tfac)+'.fil')
+data3_masked_downsampled=FilReader('data_'+str(id_of_interest)+'_masked_f1_t'+str(tfac)+'.fil')
+# data3_masked_downsampled=FilReader(non_personalized_test_file+'_masked_f1_t'+str(tfac)+'.fil')
 data3head=data3_masked_downsampled.header
 data3_t0=data3head.tstart
 data3_dt=data3head.tsamp
@@ -81,7 +81,7 @@ plt.tight_layout()
 plt.savefig('normed_'+str(id_of_interest)+'_data.png',dpi=hires)
 plt.show()
 
-##### SETUP FOR LOOPS OVER DM AND WIDTH (correlation takes care of start time automatically)
+##### SETUP FOR LOOPS OVER DM AND WIDTH (correlation takes care of time localization automatically)
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
 deltaDM=data3_dt/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
@@ -104,7 +104,7 @@ else: # more compute time but more accurate to the limits of the survey
     n_widths=len(width_candidates)
     print('n_widths=',n_widths)
 
-start_index_array=np.zeros((n_dms,n_widths)) # stored values = indices of start time where the correlation is strongest
+time_localization_index_grid=np.zeros((n_dms,n_widths)) # stored values = indices of time localization where the correlation is strongest
 SNR_grid=np.zeros((n_dms,n_widths))
 SNRthreshold=3
 
@@ -127,20 +127,22 @@ for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
             if (SNR>SNRthreshold): # is the SNR above the threshold?
                 SNR_grid[i,j]=SNR
 
-        start_index_array[i,j]=maxidx
+        time_localization_index_grid[i,j]=maxidx
 alien_dm_idx,alien_width_idx=np.unravel_index((SNR_grid).argmax(), SNR_grid.shape) # width idx is too small by one
 SNR_grid[SNR_grid==0]=np.nan
 
 ##### VISUALIZE LOOP DATA PRODUCTS
 loop_aspect=2e-3
 fig,axs=plt.subplots(1,2,figsize=(15,5))
-im=axs[0].imshow(start_index_array,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]]) # # extent=[left,right,bottom,top]
-plt.colorbar(im,ax=axs[0])
+im=axs[0].imshow(time_localization_index_grid,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]]) # # extent=[left,right,bottom,top]
+cbar=plt.colorbar(im,ax=axs[0])
+cbar.set_label('index')
 axs[0].set_xlabel('width')
 axs[0].set_ylabel('DM')
-axs[0].set_title('start index')
+axs[0].set_title('Index for time localization')
 im=axs[1].imshow(SNR_grid,aspect=loop_aspect,extent=[width_candidates[0],width_candidates[-1],dm_candidates[-1],dm_candidates[0]])
-plt.colorbar(im,ax=axs[1])
+cbar=plt.colorbar(im,ax=axs[1])
+cbar.set_label('SNR')
 axs[1].set_xlabel('width')
 axs[1].set_ylabel('DM')
 axs[1].set_title('SNR')
@@ -152,10 +154,10 @@ plt.show()
 ##### RESULTING PULSE
 alien_dm=dm_candidates[alien_dm_idx]
 alien_width=width_candidates[alien_width_idx]
-alien_start_time_idx=int(start_index_array[alien_dm_idx,alien_width_idx]-1) # offset to account for the 2*N-1 happening in the convolution
-alien_start_time=data3_times0[alien_start_time_idx]
+alien_time_localization_idx=int(time_localization_index_grid[alien_dm_idx,alien_width_idx]-1) # offset to account for the 2*N-1 happening in the convolution
+alien_time_localization=data3_times0[alien_time_localization_idx]
 print('alien signal properties:')
-print('start time=',alien_start_time)
+print('time localization=',alien_time_localization)
 print('DM=',alien_dm)
 print('width=',alien_width)
 
@@ -163,7 +165,7 @@ final_dedispersed_data=data3_masked_downsampled_normalized.dedisperse(alien_dm)
 alien_pulse_profile=final_dedispersed_data.get_tim().data
 plt.figure()
 plt.plot(data3_times0,alien_pulse_profile,label='final dedispersed pulse profile')
-plt.plot(data3_times0,np.max(alien_pulse_profile)*np.exp(-(data3_times0-alien_start_time)**2/(2*alien_width**2)),label='alien template')
+plt.plot(data3_times0,np.max(alien_pulse_profile)*np.exp(-(data3_times0-alien_time_localization)**2/(2*alien_width**2)),label='alien template')
 plt.xlabel('time')
 plt.ylabel('intensity (ADU)')
 plt.legend()
