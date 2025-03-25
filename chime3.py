@@ -35,7 +35,8 @@ id_of_interest=261215947 # me
 # id_of_interest=261209827 # Kim
 # id_of_interest=261215346 # Zach
 id_of_interest=0 # placeholder (want to leave my code the same-ish when inspecting the injection)
-non_personalized_test_file='data_w_injected_sig' # 'blank_sky' # other test
+# non_personalized_test_file='data_w_injected_sig'
+non_personalized_test_file='blank_sky'
 # data3=FilReader('data_'+str(id_of_interest)+'.fil')
 data3=FilReader(non_personalized_test_file+'.fil')
 _, data3mask=data3.clean_rfi(method='mad',threshold=3.)
@@ -84,12 +85,12 @@ plt.show()
 fterm=1/(400.**2)-1/(800.**2) # GHz; tau = kDM*DM*fterm so deltatau = kDM*deltaDM*fterm -> deltaDM = deltatau/(kDM*fterm)
 kDM=4148.8 # MHz**2 pc**{-1} cm**3 s
 deltaDM=data3_dt/(kDM*fterm) # pc cm**{-3} **desired spacing for the dm search
-# dm_lo=-60
-dm_lo=-100
+dm_lo=-60
+# dm_lo=-100
 dm_hi=0
 DMrange=dm_hi-dm_lo 
-# n_dms=int(DMrange/deltaDM)
-n_dms=100
+n_dms=int(DMrange/deltaDM)
+# n_dms=100
 dm_candidates=np.linspace(dm_lo,dm_hi,n_dms) # use DM magnitudes up to the edge of the galaxy, but negative
 
 max_width=0.1 # cap at 1 s for now
@@ -108,7 +109,6 @@ SNR_grid=np.zeros((n_dms,n_widths))
 SNRthreshold=3
 
 ##### SEARCH THE DM-WIDTH PARAMETER SPACE
-n_hist_bins=75
 for i,test_dm in enumerate(dm_candidates): # consider the DM candidates
     dedispersed_data=data3_masked_downsampled_normalized.dedisperse(test_dm) # get 2D array dedispersed by the candidate amount
     dedispersed_pulse_profile=dedispersed_data.get_tim().data
@@ -145,6 +145,8 @@ axs[1].set_xlabel('width')
 axs[1].set_ylabel('DM')
 axs[1].set_title('SNR')
 plt.tight_layout()
+plt.title("'Poor person's matched filter' output for ID "+str(id_of_interest))
+plt.savefig("approx_mf_output_"+str(id_of_interest)+'_data.png',dpi=hires)
 plt.show()
 
 ##### RESULTING PULSE
@@ -165,19 +167,22 @@ plt.plot(data3_times0,np.max(alien_pulse_profile)*np.exp(-(data3_times0-alien_st
 plt.xlabel('time')
 plt.ylabel('intensity (ADU)')
 plt.legend()
-plt.title('reality check for pulse profile')
+plt.title('Pulse profile and best-fit template side-by-side')
+plt.savefig('parametrization_check_'+str(id_of_interest)+'.png')
 plt.show()
 
-# def multiply_columnwise(A,b):
-#     '''for each column in matrix A, multiply elementwise by vector b'''
-#     # assert(A.shape[0]==b.shape[0]), "A must have the same number of elements per column (i.e. rows) as b has entries"
-#     return (A.T*b).T
+def multiply_columnwise(A,b):
+    '''for each column in matrix A, multiply elementwise by vector b'''
+    # assert(A.shape[0]==b.shape[0]), "A must have the same number of elements per column (i.e. rows) as b has entries"
+    return (A.T*b).T
 
-# plt.figure()
-# transferred_final_dedispersed_data=multiply_columnwise(final_dedispersed_data.data,transfer)
-# print('transferred_final_dedispersed_data=',transferred_final_dedispersed_data)
-# plt.plot(data3_times0,) # columnwise multiplication: (A.T*b).T
-# plt.xlabel('time')
-# plt.ylabel('brightness (Jy)')
-# plt.title('Alien pulse profile in physical units')
-# plt.show()
+plt.figure()
+transferred_final_dedispersed_data=multiply_columnwise(final_dedispersed_data.data,transfer)
+alien_pulse_jy=np.nansum(transferred_final_dedispersed_data,axis=0)
+plt.plot(data3_times0,alien_pulse_jy) # columnwise multiplication: (A.T*b).T
+plt.xlabel('time')
+plt.ylabel('brightness (Jy)')
+plt.title('Alien pulse profile in physical units')
+plt.savefig('pulse'+str(id_of_interest)+'_jy.png')
+plt.show()
+print('peak brightness of alien pulse is',np.max(alien_pulse_jy),'Jy')
