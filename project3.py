@@ -48,6 +48,7 @@ if prep_investig_verbose:
     probe_fits(path_head+installation_q2_file)
 
 with fits.open(event_cl_path+q2_prep_investig_fname) as hdulist:
+    print('data prep hdulist.info()=',hdulist.info())
     print('hdulist[1].data.dtype.names)=',hdulist[1].data.dtype.names) # I was struggling to figure out what the column keys were, so I (reluctantly) asked ChatGPT, which, shockingly, had this useful suggestion. Here's what I asked in order for it to recommend this: "I have a FITS file that I know contains some energies in a table that lives in hdulist[1].data. However, I don't know what that key is called (to the point where I get a KeyError if I try to access the table column using what I think the key might be). How do I print out a list of all the keys in this hdulist[1].data? (I tried print(hdulist[1].data.keys()) and it didn't work, giving me an error message that said AttributeError: recarray has no attribute keys)"
     q2_prep_investig_energies =hdulist[1].data['PHA']
     q2_prep_investig_times    =hdulist[1].data['TIME']
@@ -177,4 +178,6 @@ fields_of_interest=['MJDREFI','MJDREFF','TIMEZERO','TIMESYS','TIMEREF','TSTART',
 with fits.open(barycorred) as hdulist:
     for field in fields_of_interest:
         print(field,'=',hdulist[3].header[field])
-    np.savetxt('gti.txt',hdulist[3].data)
+    gti_data=hdulist[3].data
+    print('hdulist[3].data=',hdulist[3].data)
+    np.savetxt('barycorred_gti.txt',gti_data)
