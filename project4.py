@@ -20,14 +20,13 @@ def probe_fits(fname):
     return None
 
 ######################################## data exploration
-
 #################### q1
 gammafile='gammaray.fits'
 with fits.open(gammafile) as hdulist:
     print(hdulist.info())
     ra_rad=hdulist[1].data['RA(rad)']
     dec_rad=hdulist[1].data['Dec(rad)']
-# probe_fits(gammafile)
+probe_fits(gammafile)
 ra_deg=ra_rad*180./np.pi
 dec_deg=dec_rad*180./np.pi
 
@@ -61,7 +60,9 @@ pointing_ctr_deg=SkyCoord(ra_pointing_deg, dec_pointing_deg, unit="deg")
 print('pointing ctr coords=',pointing_ctr_deg)
 
 ra_obj_deg_idx,dec_obj_deg_idx=np.unravel_index(h2dT.argmax(), h2dT.shape)
-obj_ctr_deg=SkyCoord(xedges[ra_obj_deg_idx], yedges[dec_obj_deg_idx], unit="deg")
+ra_obj_ctr_deg=xedges[ra_obj_deg_idx]
+dec_obj_ctr_deg=yedges[dec_obj_deg_idx]
+obj_ctr_deg=SkyCoord(ra_obj_ctr_deg, dec_obj_ctr_deg, unit="deg")
 print('object ctr coords=',obj_ctr_deg)
 
 plt.figure()
@@ -76,17 +77,14 @@ plt.legend()
 plt.savefig('hist2d_veritas_with_centres.png')
 plt.show()
 
-# object_pointing_offset=pointing_ctr_deg-obj_ctr_deg # error bc algebra bw SkyCoord objects not supported
-pointing_obj_position_angle=pointing_ctr_deg.position_angle(obj_ctr_deg) # this gives the midpoint
-print('pointing_obj_position_angle=',pointing_obj_position_angle)
-pointing_obj_separation=pointing_ctr_deg.separation(obj_ctr_deg)
-print('pointing_obj_separation=',pointing_obj_separation)
-object_pointing_offset=pointing_ctr_deg.directional_offset_by(pointing_obj_position_angle,pointing_obj_separation/2)
-print('object pointing offset=',object_pointing_offset,'deg RA/dec')
+offset_ra=ra_pointing_deg-ra_obj_ctr_deg
+offset_dec=dec_pointing_deg-dec_obj_ctr_deg
+print('offset_ra,offset_dec=',offset_ra,offset_dec)
 
 ######################################## statistical detection
-
 #################### q1
+
+
 #################### q2
 #################### q3
 #################### q4
@@ -94,7 +92,6 @@ print('object pointing offset=',object_pointing_offset,'deg RA/dec')
 #################### q6
 
 ######################################## cut optimization
-
 #################### q1
 #################### q2
 #################### q3
