@@ -34,22 +34,14 @@ h2dT,xedges,yedges=np.histogram2d(ra_deg,dec_deg,bins=500)
 h2d=h2dT.T
 
 plt.figure()
-plt.imshow(h2d,extent=[xedges[0],xedges[-1],yedges[-1],yedges[0]],aspect=1) # Stackoverflow: hist2d bin populations need to be transposed before plotting (https://stackoverflow.com/questions/59795238/how-to-use-or-manipulate-the-output-return-values-of-hist2d-and-create-a-new-h)
+plt.hist2d(ra_deg,dec_deg,bins=500) # Stackoverflow: hist2d bin populations need to be transposed before plotting (https://stackoverflow.com/questions/59795238/how-to-use-or-manipulate-the-output-return-values-of-hist2d-and-create-a-new-h)
 plt.colorbar()
 plt.xlabel('RA (deg)')
 plt.ylabel('dec (deg)')
 plt.title('2D histogram of the provided VERITAS gamma-ray data')
+plt.axis('equal')
 plt.savefig('hist2d_veritas.png')
 plt.show()
-
-# plt.figure()
-# plt.hist2d(ra_deg,dec_deg,bins=500) # Stackoverflow: hist2d bin populations need to be transposed before plotting (https://stackoverflow.com/questions/59795238/how-to-use-or-manipulate-the-output-return-values-of-hist2d-and-create-a-new-h)
-# plt.colorbar()
-# plt.xlabel('RA (deg)')
-# plt.ylabel('dec (deg)')
-# plt.title('2D histogram of the provided VERITAS gamma-ray data')
-# plt.savefig('hist2d_veritas.png')
-# plt.show()
 
 #################### q2, q3: no separate code
 
@@ -59,19 +51,27 @@ dec_pointing_deg=22.5258
 pointing_ctr_deg=SkyCoord(ra_pointing_deg, dec_pointing_deg, unit="deg")
 print('pointing ctr coords=',pointing_ctr_deg)
 
-ra_obj_deg_idx,dec_obj_deg_idx=np.unravel_index(h2dT.argmax(), h2dT.shape)
-ra_obj_ctr_deg=xedges[ra_obj_deg_idx]
-dec_obj_ctr_deg=yedges[dec_obj_deg_idx]
-obj_ctr_deg=SkyCoord(ra_obj_ctr_deg, dec_obj_ctr_deg, unit="deg")
+# ra_obj_deg_idx,dec_obj_deg_idx=np.unravel_index(h2dT.argmax(), h2dT.shape)
+# ra_obj_ctr_deg=xedges[ra_obj_deg_idx]
+# dec_obj_ctr_deg=yedges[dec_obj_deg_idx]
+ra_obj_ctr_hms='05h34m31.8s'
+dec_obj_ctr_hms='22h01m03s'
+ra_obj_ctr_deg=5+34./60.+31.8/3600.
+dec_obj_ctr_deg=22+1./60.+3./3600.
+
+obj_ctr_deg=SkyCoord(ra_obj_ctr_deg, dec_obj_ctr_deg, unit='deg')
 print('object ctr coords=',obj_ctr_deg)
 
-plt.figure()
-plt.imshow(h2d,extent=[xedges[0],xedges[-1],yedges[-1],yedges[0]],aspect=1) # Stackoverflow: hist2d bin populations need to be transposed before plotting (https://stackoverflow.com/questions/59795238/how-to-use-or-manipulate-the-output-return-values-of-hist2d-and-create-a-new-h)
-plt.scatter(ra_pointing_deg,dec_pointing_deg,label='pointing centre',c='C1')
-plt.scatter(xedges[ra_obj_deg_idx], yedges[dec_obj_deg_idx],label='object centre',c='C3')
+plt.figure(figsize=(30,5))
+plt.hist2d(ra_deg,dec_deg,bins=500) # Stackoverflow: hist2d bin populations need to be transposed before plotting (https://stackoverflow.com/questions/59795238/how-to-use-or-manipulate-the-output-return-values-of-hist2d-and-create-a-new-h)
 plt.colorbar()
+plt.scatter(ra_pointing_deg,dec_pointing_deg,label='pointing centre',c='C1')
+plt.scatter(ra_obj_ctr_deg,dec_obj_ctr_deg,label='object centre',c='C3')
 plt.xlabel('RA (deg)')
 plt.ylabel('dec (deg)')
+plt.xlim(5,95)
+plt.ylim(20,30)
+plt.axis('equal')
 plt.title('2D histogram of the provided VERITAS gamma-ray data')
 plt.legend()
 plt.savefig('hist2d_veritas_with_centres.png')
@@ -83,7 +83,8 @@ print('offset_ra,offset_dec=',offset_ra,offset_dec)
 
 ######################################## statistical detection
 #################### q1
-
+def event_toSkyCoord(event_idx_ra,event_idx_dec):
+    return SkyCoord(event_idx_ra, event_idx_dec, unit="deg")
 
 #################### q2
 #################### q3
