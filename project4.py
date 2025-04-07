@@ -109,11 +109,8 @@ if check_stats_regions:
 def event_sep_from_reference(event_coords,reference_coords):
     return reference_coords.separation(event_coords).arcmin
 
-N_events=len(ra_deg)
-print('N_events=',N_events)
-
-recalculate_event_seps=False
-if recalculate_event_seps:
+def recalculate_event_Ns(event_list_ras,event_list_decs,case):
+    N_events=len(event_list_ras)
     event_seps_from_source=np.zeros((N_events,2))
     event_seps_from_ref_a=np.zeros((N_events,2))
     event_seps_from_ref_b=np.zeros((N_events,2))
@@ -122,12 +119,11 @@ if recalculate_event_seps:
     N_a=0
     N_b=0
     N_c=0
-    for i,event_ra in enumerate(ra_deg):
-        # current_sep_from_source=event_sep_from_reference(event_SkyCoord(event_ra,dec_deg[i]),obj_ctr_deg)
-        current_sep_from_source=event_sep_from_reference(SkyCoord(event_ra,dec_deg[i],unit="deg"),obj_ctr_deg)
-        current_sep_from_ref_a=event_sep_from_reference(SkyCoord(event_ra,dec_deg[i],unit="deg"),ref_a)
-        current_sep_from_ref_b=event_sep_from_reference(SkyCoord(event_ra,dec_deg[i],unit="deg"),ref_b)
-        current_sep_from_ref_c=event_sep_from_reference(SkyCoord(event_ra,dec_deg[i],unit="deg"),ref_c)
+    for i,event_ra in enumerate(event_list_ras):
+        current_sep_from_source=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),obj_ctr_deg)
+        current_sep_from_ref_a=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_a)
+        current_sep_from_ref_b=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_b)
+        current_sep_from_ref_c=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_c)
         event_seps_from_source[i,0]=current_sep_from_source # IN ARCMIN
         event_seps_from_ref_a[i,0]=current_sep_from_ref_a
         event_seps_from_ref_b[i,0]=current_sep_from_ref_b
@@ -146,17 +142,66 @@ if recalculate_event_seps:
             event_seps_from_ref_c[i,1]=1
         if(i%5000==0):
             print('i=',i)
-    np.savetxt('event_seps_from_source.txt',event_seps_from_source)
-    np.savetxt('event_seps_from_ref_a.txt',event_seps_from_ref_a)
-    np.savetxt('event_seps_from_ref_b.txt',event_seps_from_ref_b)
-    np.savetxt('event_seps_from_ref_c.txt',event_seps_from_ref_c)
-    np.savetxt('N_values.txt',[N_on,N_a,N_b,N_c],fmt="%d",header="N_on,N_a,N_b,N_c")
-else:
-    event_seps_from_source=np.genfromtxt('event_seps_from_source.txt')
-    event_seps_from_ref_a=np.genfromtxt('event_seps_from_ref_a.txt')
-    event_seps_from_ref_b=np.genfromtxt('event_seps_from_ref_b.txt')
-    event_seps_from_ref_c=np.genfromtxt('event_seps_from_ref_c.txt')
-    N_on,N_a,N_b,N_c=np.genfromtxt('N_values.txt')
+    np.savetxt(case+'_event_seps_from_source.txt',event_seps_from_source)
+    np.savetxt(case+'_event_seps_from_ref_a.txt',event_seps_from_ref_a)
+    np.savetxt(case+'_event_seps_from_ref_b.txt',event_seps_from_ref_b)
+    np.savetxt(case+'_event_seps_from_ref_c.txt',event_seps_from_ref_c)
+    np.savetxt(case+'_N_values.txt',[N_on,N_a,N_b,N_c],fmt="%d",header="N_on,N_a,N_b,N_c")
+    return None
+
+N_events=len(ra_deg)
+print('N_events=',N_events)
+
+recalculate_uncut_event_Ns=False
+base_case='no_cuts'
+if recalculate_uncut_event_Ns:
+    recalculate_event_Ns(ra_deg,dec_deg,case=base_case)
+    # event_seps_from_source=np.zeros((N_events,2))
+    # event_seps_from_ref_a=np.zeros((N_events,2))
+    # event_seps_from_ref_b=np.zeros((N_events,2))
+    # event_seps_from_ref_c=np.zeros((N_events,2))
+    # N_on=0
+    # N_a=0
+    # N_b=0
+    # N_c=0
+    # for i,event_ra in enumerate(ra_deg):
+    #     current_sep_from_source=event_sep_from_reference(SkyCoord(event_ra,dec_deg[i],unit="deg"),obj_ctr_deg)
+    #     current_sep_from_ref_a=event_sep_from_reference(SkyCoord(event_ra,dec_deg[i],unit="deg"),ref_a)
+    #     current_sep_from_ref_b=event_sep_from_reference(SkyCoord(event_ra,dec_deg[i],unit="deg"),ref_b)
+    #     current_sep_from_ref_c=event_sep_from_reference(SkyCoord(event_ra,dec_deg[i],unit="deg"),ref_c)
+    #     event_seps_from_source[i,0]=current_sep_from_source # IN ARCMIN
+    #     event_seps_from_ref_a[i,0]=current_sep_from_ref_a
+    #     event_seps_from_ref_b[i,0]=current_sep_from_ref_b
+    #     event_seps_from_ref_c[i,0]=current_sep_from_ref_c
+    #     if (current_sep_from_source<6): # 0.1 deg = 6 arcmin
+    #         N_on+=1
+    #         event_seps_from_source[i,1]=1 # True flag for event status
+    #     if (current_sep_from_ref_a<6):
+    #         N_a+=1
+    #         event_seps_from_ref_a[i,1]=1
+    #     if (current_sep_from_ref_b<6):
+    #         N_b+=1
+    #         event_seps_from_ref_b[i,1]=1
+    #     if (current_sep_from_ref_c<6):
+    #         N_c+=1
+    #         event_seps_from_ref_c[i,1]=1
+    #     if(i%5000==0):
+    #         print('i=',i)
+    # np.savetxt('event_seps_from_source.txt',event_seps_from_source)
+    # np.savetxt('event_seps_from_ref_a.txt',event_seps_from_ref_a)
+    # np.savetxt('event_seps_from_ref_b.txt',event_seps_from_ref_b)
+    # np.savetxt('event_seps_from_ref_c.txt',event_seps_from_ref_c)
+    # np.savetxt('N_values.txt',[N_on,N_a,N_b,N_c],fmt="%d",header="N_on,N_a,N_b,N_c")
+event_seps_from_source=np.genfromtxt(base_case+'_event_seps_from_source.txt')
+event_seps_from_ref_a=np.genfromtxt(base_case+'_event_seps_from_ref_a.txt')
+event_seps_from_ref_b=np.genfromtxt(base_case+'_event_seps_from_ref_b.txt')
+event_seps_from_ref_c=np.genfromtxt(base_case+'_event_seps_from_ref_c.txt')
+N_on,N_a,N_b,N_c=np.genfromtxt(base_case+'_N_values.txt')
+    # event_seps_from_source=np.genfromtxt('event_seps_from_source.txt')
+    # event_seps_from_ref_a=np.genfromtxt('event_seps_from_ref_a.txt')
+    # event_seps_from_ref_b=np.genfromtxt('event_seps_from_ref_b.txt')
+    # event_seps_from_ref_c=np.genfromtxt('event_seps_from_ref_c.txt')
+    # N_on,N_a,N_b,N_c=np.genfromtxt('N_values.txt')
 N_off=N_a+N_b+N_c
 print("N_on=",N_on)
 print("N_a=",N_a)
@@ -181,8 +226,36 @@ print("significance of this observation is", significance)
 
 ######################################## cut optimization
 #################### q1
+nbins=100
+plt.figure(figsize=(10,5))
+plt.hist(mscl,bins=nbins,label="MSCL",alpha=0.7)
+plt.hist(mscw,bins=nbins,label="MSCL",alpha=0.7)
+plt.xlabel("Event scale proxy [dimensionless]")
+plt.ylabel("Number of instances")
+plt.title("Event scale parameter histograms")
+plt.legend()
+plt.tight_layout()
+plt.savefig("mean_scale_histograms.png")
+plt.show()
 
-
+assert(1==0),"still debugging the modularization of the significance calculation"
 #################### q2
+recalculate_cut_Ns=True
+mscx_cut_candidates=np.arange(0.9,1.9,0.1)
+n_xcut_candidates=len(mscx_cut_candidates)
+cut_significances=np.zeros((n_xcut_candidates,n_xcut_candidates))
+for i,mscw_cut_candidate in enumerate(mscx_cut_candidates):
+    for j,mscl_cut_candidate in enumerate(mscx_cut_candidates):
+        cut_case_id=str(i)+'_'+str(j)
+        if recalculate_cut_Ns:
+            keep=(mscw<mscw_cut_candidate)and(mscl<mscl_cut_candidate)
+            ra_deg_keep=ra_deg[keep]
+            dec_deg_keep=dec_deg[keep]
+            recalculate_event_Ns(ra_deg_keep,dec_deg_keep,case=cut_case_id)
+        N_on_cut,N_a_cut,N_b_cut,N_c_cut=np.genfromtxt(base_case+'N_values.txt')
+        N_off_cut=N_a_cut+N_b_cut+N_c_cut
+
+        cut_significances[i,j]=S(1./3.,N_on_cut,N_off_cut)
+
 #################### q3
 #################### q4
