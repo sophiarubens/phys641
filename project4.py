@@ -83,16 +83,30 @@ ra_offset_deg=ra_pointing_deg-ra_obj_ctr_deg
 dec_offset_deg=dec_pointing_deg-dec_obj_ctr_deg
 print('ra_offset_deg,dec_offset_deg=',ra_offset_deg,dec_offset_deg)
 ref_a=SkyCoord(ra_pointing_deg-dec_offset_deg,dec_pointing_deg, unit='deg') # "left" of the pointing centre
-ref_b=SkyCoord(ra_pointing_deg,dec_pointing_deg-dec_offset_deg, unit='deg') # "below" the pointing centre
+ref_b=SkyCoord(ra_pointing_deg,dec_pointing_deg+dec_offset_deg, unit='deg') # "below" the pointing centre
 ref_c=SkyCoord(ra_pointing_deg+dec_offset_deg,dec_pointing_deg, unit='deg') # "right" of the pointing centre
+
+check_stats_regions=True
+if check_stats_regions:
+    plt.figure()
+    plt.hist2d(ra_deg,dec_deg,bins=500) # Stackoverflow: hist2d bin populations need to be transposed before plotting (https://stackoverflow.com/questions/59795238/how-to-use-or-manipulate-the-output-return-values-of-hist2d-and-create-a-new-h)
+    plt.colorbar()
+    plt.scatter(ra_pointing_deg,dec_pointing_deg,label='pointing centre',c='C1')
+    plt.scatter(ra_obj_ctr_deg,dec_obj_ctr_deg,label='object centre',c='C3')
+    plt.scatter(ra_pointing_deg-dec_offset_deg,dec_pointing_deg,label='ref a',c='C2')
+    plt.scatter(ra_pointing_deg,dec_pointing_deg+dec_offset_deg,label='ref b',c='C4')
+    plt.scatter(ra_pointing_deg+dec_offset_deg,dec_pointing_deg,label='ref c',c='C5')
+    plt.xlabel('RA (deg)')
+    plt.ylabel('dec (deg)')
+    plt.axis('equal')
+    plt.title('Check noise stats region positions')
+    plt.legend()
+    plt.savefig('check_stats_regions.png')
+    plt.show()
 
 ######################################## statistical detection
 #################### q1
-# def event_SkyCoord(event_ra,event_dec):
-#     return SkyCoord(event_ra, event_dec, unit="deg")
-
 def event_sep_from_reference(event_coords,reference_coords):
-    # print('event_coords=',event_coords)
     return reference_coords.separation(event_coords).arcmin
 
 N_events=len(ra_deg)
@@ -136,28 +150,39 @@ if recalculate_event_seps:
     np.savetxt('event_seps_from_ref_a.txt',event_seps_from_ref_a)
     np.savetxt('event_seps_from_ref_b.txt',event_seps_from_ref_b)
     np.savetxt('event_seps_from_ref_c.txt',event_seps_from_ref_c)
-    print("N_on=",N_on)
-    print("N_a=",N_a)
-    print("N_b=",N_b)
-    print("N_c=",N_c)
-    np.savetxt('N_values.txt',[N_on,N_a,N_b,N_c],header='N_on,N_a,N_b,N_c')
+    np.savetxt('N_values.txt',[N_on,N_a,N_b,N_c],fmt="%d",header="N_on,N_a,N_b,N_c")
 else:
     event_seps_from_source=np.genfromtxt('event_seps_from_source.txt')
     event_seps_from_ref_a=np.genfromtxt('event_seps_from_ref_a.txt')
     event_seps_from_ref_b=np.genfromtxt('event_seps_from_ref_b.txt')
     event_seps_from_ref_c=np.genfromtxt('event_seps_from_ref_c.txt')
-    N_values=np.genfromtxt('N_values.txt')
-    N_on,N_a,N_b,N_c=N_values
-    N_off=N_a+N_b+N_c
+    N_on,N_a,N_b,N_c=np.genfromtxt('N_values.txt')
+N_off=N_a+N_b+N_c
+print("N_on=",N_on)
+print("N_a=",N_a)
+print("N_b=",N_b)
+print("N_c=",N_c)
+print("N_off=",N_a+N_b+N_c," (=N_a+N_b+N_c)")
 
-#################### q2
-#################### q3
-#################### q4
+#################### q2: no separate code
+#################### q3: for computational efficiency, accomplished in the same loop as in q1 above
+#################### q4: no separate code
 #################### q5
-#################### q6
+def S(alpha,N_on,N_off):
+    term1=N_on*np.log((N_on*(1+alpha))/(alpha*(N_on+N_off)))
+    term2=N_off*np.log(((1+alpha)*N_off)/(N_on+N_off))
+    return np.sqrt(2)*np.sqrt(term1+term2)
+
+alpha=1./3. # t_on/t_off
+significance=S(alpha,N_on,N_off)
+print("significance of this observation is", significance)
+
+#################### q6: no separate code
 
 ######################################## cut optimization
 #################### q1
+
+
 #################### q2
 #################### q3
 #################### q4
