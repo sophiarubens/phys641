@@ -82,9 +82,12 @@ if plot_hist2d_with_centres:
 ra_offset_deg=ra_pointing_deg-ra_obj_ctr_deg
 dec_offset_deg=dec_pointing_deg-dec_obj_ctr_deg
 print('ra_offset_deg,dec_offset_deg=',ra_offset_deg,dec_offset_deg)
-ref_a=SkyCoord(ra_pointing_deg-dec_offset_deg,dec_pointing_deg, unit='deg') # "left" of the pointing centre
+ref_a=SkyCoord(ra_pointing_deg-dec_offset_deg*np.cos(dec_pointing_deg),dec_pointing_deg, unit='deg') # "left" of the pointing centre
 ref_b=SkyCoord(ra_pointing_deg,dec_pointing_deg+dec_offset_deg, unit='deg') # "below" the pointing centre
-ref_c=SkyCoord(ra_pointing_deg+dec_offset_deg,dec_pointing_deg, unit='deg') # "right" of the pointing centre
+ref_c=SkyCoord(ra_pointing_deg+dec_offset_deg*np.cos(dec_pointing_deg),dec_pointing_deg, unit='deg') # "right" of the pointing centre
+# ref_a=SkyCoord(ra_pointing_deg-dec_offset_deg,dec_pointing_deg, unit='deg') # "left" of the pointing centre
+# ref_b=SkyCoord(ra_pointing_deg,dec_pointing_deg+dec_offset_deg, unit='deg') # "below" the pointing centre
+# ref_c=SkyCoord(ra_pointing_deg+dec_offset_deg,dec_pointing_deg, unit='deg') # "right" of the pointing centre
 
 check_stats_regions=True
 if check_stats_regions:
@@ -133,11 +136,8 @@ def print_count_summary(N_on,N_a,N_b,N_c):
 N_events=len(ra_deg)
 print('N_events=',N_events)
 
-recalculate_uncut_event_Ns=True
 base_case='no_cuts'
-# if recalculate_uncut_event_Ns:
 N_on,N_a,N_b,N_c=recalculate_event_Ns(ra_deg,dec_deg,case=base_case)
-# N_on,N_a,N_b,N_c=np.genfromtxt(counts_path+base_case+'_N_values.txt')
 N_off=N_a+N_b+N_c
 print("WITHOUT CUTS")
 print_count_summary(N_on,N_a,N_b,N_c)
@@ -179,7 +179,6 @@ cut_significances=np.zeros((n_xcut_candidates,n_xcut_candidates))
 for i,mscw_cut_candidate in enumerate(mscx_cut_candidates):
     for j,mscl_cut_candidate in enumerate(mscx_cut_candidates):
         cut_case_id=str(i)+'_'+str(j)
-        # if recalculate_cut_Ns: #(property1<cut1)&(property2<cut2)
         keep=(mscw<mscw_cut_candidate)&(mscl<mscl_cut_candidate)
         ra_deg_keep=ra_deg[keep]
         dec_deg_keep=dec_deg[keep]
@@ -200,7 +199,7 @@ plt.savefig('significance_of_cut_combos.png')
 plt.show()
 
 print("\n\nCuts (ceilings) that lead to the highest significance:")
-best_mscw_cut_idx,best_mscl_cut_idx=np.unravel_index(cut_significances.argmax(), cut_significances.shape)
+best_mscw_cut_idx,best_mscl_cut_idx=np.unravel_index(np.nanargmax(cut_significances), cut_significances.shape)
 best_mscw_cut=mscx_cut_candidates[best_mscw_cut_idx]
 best_mscl_cut=mscx_cut_candidates[best_mscl_cut_idx]
 print("MSCW ->",best_mscw_cut)
