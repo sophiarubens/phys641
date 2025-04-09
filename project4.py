@@ -111,63 +111,77 @@ def event_sep_from_reference(event_coords,reference_coords):
 
 counts_path="/Users/sophiarubens/Downloads/W25/PHYS641/projects/project4_VERITAS/stats_files/"
 def recalculate_event_Ns(event_list_ras,event_list_decs,case):
-    N_events=len(event_list_ras)
-    event_seps_from_source=np.zeros((N_events,2))
-    event_seps_from_ref_a=np.zeros((N_events,2))
-    event_seps_from_ref_b=np.zeros((N_events,2))
-    event_seps_from_ref_c=np.zeros((N_events,2))
-    N_on=0
-    N_a=0
-    N_b=0
-    N_c=0
-    for i,event_ra in enumerate(event_list_ras):
-        current_sep_from_source=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),obj_ctr_deg)
-        current_sep_from_ref_a=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_a)
-        current_sep_from_ref_b=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_b)
-        current_sep_from_ref_c=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_c)
-        event_seps_from_source[i,0]=current_sep_from_source # IN ARCMIN
-        event_seps_from_ref_a[i,0]=current_sep_from_ref_a
-        event_seps_from_ref_b[i,0]=current_sep_from_ref_b
-        event_seps_from_ref_c[i,0]=current_sep_from_ref_c
-        if (current_sep_from_source<6): # 0.1 deg = 6 arcmin
-            N_on+=1
-            event_seps_from_source[i,1]=1 # True flag for event status
-        if (current_sep_from_ref_a<6):
-            N_a+=1
-            event_seps_from_ref_a[i,1]=1
-        if (current_sep_from_ref_b<6):
-            N_b+=1
-            event_seps_from_ref_b[i,1]=1
-        if (current_sep_from_ref_c<6):
-            N_c+=1
-            event_seps_from_ref_c[i,1]=1
-        if(i%5000==0):
-            print('i=',i)
-    np.savetxt(counts_path+case+'_event_seps_from_source.txt',event_seps_from_source)
-    np.savetxt(counts_path+case+'_event_seps_from_ref_a.txt',event_seps_from_ref_a)
-    np.savetxt(counts_path+case+'_event_seps_from_ref_b.txt',event_seps_from_ref_b)
-    np.savetxt(counts_path+case+'_event_seps_from_ref_c.txt',event_seps_from_ref_c)
+    event_seps_from_source=event_sep_from_reference(SkyCoord(event_list_ras,event_list_decs,unit="deg"),obj_ctr_deg)
+    event_seps_from_ref_a= event_sep_from_reference(SkyCoord(event_list_ras,event_list_decs,unit="deg"),ref_a)
+    event_seps_from_ref_b= event_sep_from_reference(SkyCoord(event_list_ras,event_list_decs,unit="deg"),ref_b)
+    event_seps_from_ref_c= event_sep_from_reference(SkyCoord(event_list_ras,event_list_decs,unit="deg"),ref_c)
+    N_on=np.count_nonzero(event_seps_from_source<6)
+    N_a=np.count_nonzero(event_seps_from_ref_a<6)
+    N_b=np.count_nonzero(event_seps_from_ref_b<6)
+    N_c=np.count_nonzero(event_seps_from_ref_c<6)
+    N_off=N_a+N_b+N_c
     np.savetxt(counts_path+case+'_N_values.txt',[N_on,N_a,N_b,N_c],fmt="%d",header="N_on,N_a,N_b,N_c")
+    return N_on,N_off
+
+# def recalculate_event_Ns(event_list_ras,event_list_decs,case):
+#     N_events=len(event_list_ras)
+#     event_seps_from_source=np.zeros((N_events,2))
+#     event_seps_from_ref_a=np.zeros((N_events,2))
+#     event_seps_from_ref_b=np.zeros((N_events,2))
+#     event_seps_from_ref_c=np.zeros((N_events,2))
+#     N_on=0
+#     N_a=0
+#     N_b=0
+#     N_c=0
+#     for i,event_ra in enumerate(event_list_ras):
+#         current_sep_from_source=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),obj_ctr_deg)
+#         current_sep_from_ref_a=event_sep_from_reference( SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_a)
+#         current_sep_from_ref_b=event_sep_from_reference( SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_b)
+#         current_sep_from_ref_c=event_sep_from_reference( SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_c)
+#         event_seps_from_source[i,0]=current_sep_from_source # IN ARCMIN
+#         event_seps_from_ref_a[i,0]=current_sep_from_ref_a
+#         event_seps_from_ref_b[i,0]=current_sep_from_ref_b
+#         event_seps_from_ref_c[i,0]=current_sep_from_ref_c
+#         if (current_sep_from_source<6): # 0.1 deg = 6 arcmin
+#             N_on+=1
+#             event_seps_from_source[i,1]=1 # True flag for event status
+#         if (current_sep_from_ref_a<6):
+#             N_a+=1
+#             event_seps_from_ref_a[i,1]=1
+#         if (current_sep_from_ref_b<6):
+#             N_b+=1
+#             event_seps_from_ref_b[i,1]=1
+#         if (current_sep_from_ref_c<6):
+#             N_c+=1
+#             event_seps_from_ref_c[i,1]=1
+#         if(i%5000==0):
+#             print('i=',i)
+#     np.savetxt(counts_path+case+'_event_seps_from_source.txt',event_seps_from_source)
+#     np.savetxt(counts_path+case+'_event_seps_from_ref_a.txt',event_seps_from_ref_a)
+#     np.savetxt(counts_path+case+'_event_seps_from_ref_b.txt',event_seps_from_ref_b)
+#     np.savetxt(counts_path+case+'_event_seps_from_ref_c.txt',event_seps_from_ref_c)
+#     np.savetxt(counts_path+case+'_N_values.txt',[N_on,N_a,N_b,N_c],fmt="%d",header="N_on,N_a,N_b,N_c")
+#     return None
+
+def print_count_summary(N_on,N_a,N_b,N_c):
+    print("N_on=",N_on)
+    print("N_a=",N_a)
+    print("N_b=",N_b)
+    print("N_c=",N_c)
+    print("N_off=",N_a+N_b+N_c," (=N_a+N_b+N_c)")
     return None
 
 N_events=len(ra_deg)
 print('N_events=',N_events)
 
-recalculate_uncut_event_Ns=False
+recalculate_uncut_event_Ns=True
 base_case='no_cuts'
 if recalculate_uncut_event_Ns:
     recalculate_event_Ns(ra_deg,dec_deg,case=base_case)
-# event_seps_from_source=np.genfromtxt(counts_path+base_case+'_event_seps_from_source.txt')
-# event_seps_from_ref_a=np.genfromtxt(counts_path+base_case+'_event_seps_from_ref_a.txt')
-# event_seps_from_ref_b=np.genfromtxt(counts_path+base_case+'_event_seps_from_ref_b.txt')
-# event_seps_from_ref_c=np.genfromtxt(counts_path+base_case+'_event_seps_from_ref_c.txt')
 N_on,N_a,N_b,N_c=np.genfromtxt(counts_path+base_case+'_N_values.txt')
 N_off=N_a+N_b+N_c
-print("N_on=",N_on)
-print("N_a=",N_a)
-print("N_b=",N_b)
-print("N_c=",N_c)
-print("N_off=",N_a+N_b+N_c," (=N_a+N_b+N_c)")
+print("WITHOUT CUTS")
+print_count_summary(N_on,N_a,N_b,N_c)
 
 #################### q2: no separate code
 #################### q3: for computational efficiency, accomplished in the same loop as in q1 above
@@ -180,7 +194,6 @@ def S(alpha,N_on,N_off):
 
 alpha=1./3. # t_on/t_off
 significance=S(alpha,N_on,N_off)
-print("WITHOUT CUTS")
 print("significance of this observation is", significance)
 
 #################### q6: no separate code
@@ -190,7 +203,7 @@ print("significance of this observation is", significance)
 nbins=100
 plt.figure(figsize=(10,5))
 plt.hist(mscl,bins=nbins,label="MSCL",alpha=0.7)
-plt.hist(mscw,bins=nbins,label="MSCL",alpha=0.7)
+plt.hist(mscw,bins=nbins,label="MSCW",alpha=0.7)
 plt.xlabel("Event scale proxy [dimensionless]")
 plt.ylabel("Number of instances")
 plt.title("Event scale parameter histograms")
@@ -200,7 +213,7 @@ plt.savefig("mean_scale_histograms.png")
 plt.show()
 
 #################### q2
-recalculate_cut_Ns=False
+recalculate_cut_Ns=True
 mscx_cut_candidates=np.arange(0.9,1.9,0.1)
 n_xcut_candidates=len(mscx_cut_candidates)
 cut_significances=np.zeros((n_xcut_candidates,n_xcut_candidates))
@@ -228,13 +241,16 @@ plt.tight_layout()
 plt.savefig('significance_of_cut_combos.png')
 plt.show()
 
-print("WITH CUTS")
-print("Cuts (ceilings) that lead to the highest significance:")
+print("\n\nCuts (ceilings) that lead to the highest significance:")
 best_mscw_cut_idx,best_mscl_cut_idx=np.unravel_index(cut_significances.argmax(), cut_significances.shape)
 best_mscw_cut=mscx_cut_candidates[best_mscw_cut_idx]
 best_mscl_cut=mscx_cut_candidates[best_mscl_cut_idx]
 print("MSCW ->",best_mscw_cut)
 print("MSCL ->",best_mscl_cut)
+print("\nWITH CUTS")
+N_on_cut,N_a_cut,N_b_cut,N_c_cut=np.genfromtxt(counts_path+str(best_mscw_cut_idx)+'_'+str(best_mscl_cut_idx)+'_N_values.txt')
+N_off_cut=N_a_cut+N_b_cut+N_c_cut
+print_count_summary(N_on_cut,N_a_cut,N_b_cut,N_c_cut)
 print("significance of this observation is", cut_significances[best_mscw_cut_idx,best_mscl_cut_idx])
 
 #################### q4: no separate code
