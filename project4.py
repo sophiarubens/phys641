@@ -119,49 +119,8 @@ def recalculate_event_Ns(event_list_ras,event_list_decs,case):
     N_a=np.count_nonzero(event_seps_from_ref_a<6)
     N_b=np.count_nonzero(event_seps_from_ref_b<6)
     N_c=np.count_nonzero(event_seps_from_ref_c<6)
-    N_off=N_a+N_b+N_c
     np.savetxt(counts_path+case+'_N_values.txt',[N_on,N_a,N_b,N_c],fmt="%d",header="N_on,N_a,N_b,N_c")
-    return N_on,N_off
-
-# def recalculate_event_Ns(event_list_ras,event_list_decs,case):
-#     N_events=len(event_list_ras)
-#     event_seps_from_source=np.zeros((N_events,2))
-#     event_seps_from_ref_a=np.zeros((N_events,2))
-#     event_seps_from_ref_b=np.zeros((N_events,2))
-#     event_seps_from_ref_c=np.zeros((N_events,2))
-#     N_on=0
-#     N_a=0
-#     N_b=0
-#     N_c=0
-#     for i,event_ra in enumerate(event_list_ras):
-#         current_sep_from_source=event_sep_from_reference(SkyCoord(event_ra,event_list_decs[i],unit="deg"),obj_ctr_deg)
-#         current_sep_from_ref_a=event_sep_from_reference( SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_a)
-#         current_sep_from_ref_b=event_sep_from_reference( SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_b)
-#         current_sep_from_ref_c=event_sep_from_reference( SkyCoord(event_ra,event_list_decs[i],unit="deg"),ref_c)
-#         event_seps_from_source[i,0]=current_sep_from_source # IN ARCMIN
-#         event_seps_from_ref_a[i,0]=current_sep_from_ref_a
-#         event_seps_from_ref_b[i,0]=current_sep_from_ref_b
-#         event_seps_from_ref_c[i,0]=current_sep_from_ref_c
-#         if (current_sep_from_source<6): # 0.1 deg = 6 arcmin
-#             N_on+=1
-#             event_seps_from_source[i,1]=1 # True flag for event status
-#         if (current_sep_from_ref_a<6):
-#             N_a+=1
-#             event_seps_from_ref_a[i,1]=1
-#         if (current_sep_from_ref_b<6):
-#             N_b+=1
-#             event_seps_from_ref_b[i,1]=1
-#         if (current_sep_from_ref_c<6):
-#             N_c+=1
-#             event_seps_from_ref_c[i,1]=1
-#         if(i%5000==0):
-#             print('i=',i)
-#     np.savetxt(counts_path+case+'_event_seps_from_source.txt',event_seps_from_source)
-#     np.savetxt(counts_path+case+'_event_seps_from_ref_a.txt',event_seps_from_ref_a)
-#     np.savetxt(counts_path+case+'_event_seps_from_ref_b.txt',event_seps_from_ref_b)
-#     np.savetxt(counts_path+case+'_event_seps_from_ref_c.txt',event_seps_from_ref_c)
-#     np.savetxt(counts_path+case+'_N_values.txt',[N_on,N_a,N_b,N_c],fmt="%d",header="N_on,N_a,N_b,N_c")
-#     return None
+    return N_on,N_a,N_b,N_c
 
 def print_count_summary(N_on,N_a,N_b,N_c):
     print("N_on=",N_on)
@@ -176,9 +135,9 @@ print('N_events=',N_events)
 
 recalculate_uncut_event_Ns=True
 base_case='no_cuts'
-if recalculate_uncut_event_Ns:
-    recalculate_event_Ns(ra_deg,dec_deg,case=base_case)
-N_on,N_a,N_b,N_c=np.genfromtxt(counts_path+base_case+'_N_values.txt')
+# if recalculate_uncut_event_Ns:
+N_on,N_a,N_b,N_c=recalculate_event_Ns(ra_deg,dec_deg,case=base_case)
+# N_on,N_a,N_b,N_c=np.genfromtxt(counts_path+base_case+'_N_values.txt')
 N_off=N_a+N_b+N_c
 print("WITHOUT CUTS")
 print_count_summary(N_on,N_a,N_b,N_c)
@@ -220,12 +179,11 @@ cut_significances=np.zeros((n_xcut_candidates,n_xcut_candidates))
 for i,mscw_cut_candidate in enumerate(mscx_cut_candidates):
     for j,mscl_cut_candidate in enumerate(mscx_cut_candidates):
         cut_case_id=str(i)+'_'+str(j)
-        if recalculate_cut_Ns: #(property1<cut1)&(property2<cut2)
-            keep=(mscw<mscw_cut_candidate)&(mscl<mscl_cut_candidate)
-            ra_deg_keep=ra_deg[keep]
-            dec_deg_keep=dec_deg[keep]
-            recalculate_event_Ns(ra_deg_keep,dec_deg_keep,case=cut_case_id)
-        N_on_cut,N_a_cut,N_b_cut,N_c_cut=np.genfromtxt(counts_path+cut_case_id+'_N_values.txt')
+        # if recalculate_cut_Ns: #(property1<cut1)&(property2<cut2)
+        keep=(mscw<mscw_cut_candidate)&(mscl<mscl_cut_candidate)
+        ra_deg_keep=ra_deg[keep]
+        dec_deg_keep=dec_deg[keep]
+        N_on_cut,N_a_cut,N_b_cut,N_c_cut=recalculate_event_Ns(ra_deg_keep,dec_deg_keep,case=cut_case_id)
         N_off_cut=N_a_cut+N_b_cut+N_c_cut
 
         cut_significances[i,j]=S(1./3.,N_on_cut,N_off_cut)
@@ -248,7 +206,6 @@ best_mscl_cut=mscx_cut_candidates[best_mscl_cut_idx]
 print("MSCW ->",best_mscw_cut)
 print("MSCL ->",best_mscl_cut)
 print("\nWITH CUTS")
-N_on_cut,N_a_cut,N_b_cut,N_c_cut=np.genfromtxt(counts_path+str(best_mscw_cut_idx)+'_'+str(best_mscl_cut_idx)+'_N_values.txt')
 N_off_cut=N_a_cut+N_b_cut+N_c_cut
 print_count_summary(N_on_cut,N_a_cut,N_b_cut,N_c_cut)
 print("significance of this observation is", cut_significances[best_mscw_cut_idx,best_mscl_cut_idx])
